@@ -1,0 +1,25 @@
+#!/bin/bash
+#SBATCH --ntasks=1
+#SBATCH --mem=64G
+#SBATCH --time=2-0:00:00
+#SBATCH --array=1-1000
+#SBATCH --partition=barnard
+#SBATCH --output=slurm.txt
+#SBATCH --job-name="interface"
+
+task=$SLURM_ARRAY_TASK_ID
+
+symfile=/data/horse/ws/jari462g-ml-rosetta/interface-design/prefusion_relaxed.symm
+input=/data/horse/ws/jari462g-ml-rosetta/interface-design/prefusion_relaxed_INPUT.pdb
+
+singularity run -B /data/horse/ws/jari462g-ml-rosetta/interface-design ../rosetta_ml.sif rosetta_scripts \
+        -parser:protocol sym_design.xml \
+        -s $input \
+        -parser:script_vars symfile=$symfile \
+        -out:file:scorefile des_relax-design.sc \
+        -out:suffix ${task}-design \
+        -ex1 \
+        -ex2aro \
+        -beta \
+        -nstruct 1 \
+        -overwrite > des_design.log

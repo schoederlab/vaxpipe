@@ -1,0 +1,93 @@
+<!--sym_design.xml-->
+<ROSETTASCRIPTS>
+	<SCOREFXNS>
+		<ScoreFunction name="r15" weights="ref2015" symmetric="true" />
+	</SCOREFXNS>
+	<RESIDUE_LEVEL_TASK_OPERATIONS>
+		<RestrictToRepackingRLT name="RestrictToRepacking" />
+	</RESIDUE_LEVEL_TASK_OPERATIONS>
+
+	<RESIDUE_SELECTORS>
+		<Chain name="chain_proto" chains="A" />
+		<Chain name="chain_other" chains="B,C" />
+
+		<InterfaceByVector name="interface" cb_dist_cut="11.0" nearby_atom_cut="5.5" 
+		vector_angle_cut="75.0" vector_dist_cut="9.0" grp1_selector="chain_proto" grp2_selector="chain_other"/>
+		<SymmetricalResidue name="sym_interface" selector="interface" />
+
+		<Layer name="surface" select_surface="true" surface_cutoff="4.0"/>
+		<Logic name="design_pos" selector="sym_interface and (not surface)"/>
+
+		<Neighborhood name="select_neighbors" selector="design_pos" distance="6.0" />
+
+		<Logic name="neighbors" selector="select_neighbors and (not design_pos)" />
+		<Logic name="other_res" selector="not select_neighbors" />
+	</RESIDUE_SELECTORS>
+	<TASKOPERATIONS>
+		<InitializeFromCommandline name="ifcl"/>
+
+		<IncludeCurrent name="use_input_rotamer" />		
+		<ExtraRotamersGeneric name="extrarot" ex1="1" ex2="0" ex3="0" ex4="0" extrachi_cutoff="5" />
+
+		<OperateOnResidueSubset name="no_repack_design" selector="other_res" >
+			<PreventRepackingRLT />
+		</OperateOnResidueSubset>
+		<OperateOnResidueSubset name="no_design" selector="neighbors" >
+			<RestrictToRepackingRLT />
+		</OperateOnResidueSubset>
+
+		<ProteinProteinInterfaceUpweighter name="upweight_interface" interface_weight="2.5" />
+	</TASKOPERATIONS>
+	<FILTERS>
+		<ShapeComplementarity name="sc" min_sc="0.3" verbose="false" quick="0" 
+			residue_selector1="neighbors" residue_selector2="design_pos" 
+			write_int_area="true" write_median_dist="true" confidence="0"/>
+		<ContactMolecularSurface name="cms" distance_weight="1.0" use_rosetta_radii="true" 
+			apolar_target="0" target_selector="neighbors" binder_selector="design_pos" 
+			confidence="0"/>
+    	</FILTERS>
+	<SIMPLE_METRICS>
+		<!--
+		<SelectedResiduesPyMOLMetric name="pos_interface" residue_selector="design_pos" />
+		<SelectedResiduesPyMOLMetric name="pos_repack" residue_selector="neighbors" />
+		<SelectedResiduesPyMOLMetric name="pos_nothing" residue_selector="other_res" />
+		<SelectedResiduesPyMOLMetric name="surface" residue_selector="surface" />
+		-->
+	</SIMPLE_METRICS>
+	<MOVERS>
+		<SetupForSymmetry name="setup_symm" definition="%%symfile%%" />
+		
+		<SymPackRotamersMover name="packer_design" scorefxn="r15" nloop="3" 
+			task_operations="ifcl,use_input_rotamer,extrarot,no_repack_design,no_design,upweight_interface"/>
+		<SymMinMover name="min" max_iter="500" tolerance="0.0001" chi="1" bb="0" bondangle="1" bondlength="1"/>
+
+		<FastDesign name="fdes" repeats="3" scorefxn="r15" 
+			task_operations="ifcl,use_input_rotamer,extrarot,no_repack_design,no_design,upweight_interface" />
+
+		<FastRelax name="relax" scorefxn="r15" 
+			task_operations="ifcl,use_input_rotamer,extrarot,no_repack_design,no_design,upweight_interface" >
+			<MoveMap name="rest2" bb="false" chi="false">
+				<ResidueSelector selector="design_pos" bb="true" chi="true" />
+				<ResidueSelector selector="neighbors" bb="true" chi="true" />
+			</MoveMap>
+		</FastRelax>
+
+		<InterfaceAnalyzerMover name="IFA" scorefxn="r15" pack_separated="true" interface_sc="true" interface="A_BC" />
+	</MOVERS>
+	<PROTOCOLS>
+		<Add mover_name="setup_symm" />
+		<Add mover_name="fdes" />
+		
+		Add mover="relax" />
+		Add mover="packer_design" />
+		Add mover="relax" />
+		Add mover="packer_design" />
+		Add mover="relax" />
+		
+		Add metrics="pos_interface,pos_nothing,surface" />
+		<Add filter="sc" />
+		<Add filter="cms" />
+		<Add mover="IFA" />
+	</PROTOCOLS>
+	<OUTPUT scorefxn="r15" />
+</ROSETTASCRIPTS>
