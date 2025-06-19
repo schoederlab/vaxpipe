@@ -1,0 +1,30 @@
+<ROSETTASCRIPTS>
+    <SCOREFXNS>
+    	<ScoreFunction name="beta_full" weights="beta" symmetric="1"/>
+    </SCOREFXNS>
+    <RESIDUE_SELECTORS>
+    </RESIDUE_SELECTORS>
+    <TASKOPERATIONS>
+        <ReadResfile name="rrf" filename="./resfile.resfile"/>
+    </TASKOPERATIONS>
+    <SIMPLE_METRICS>
+        # Inference
+        <LoadedProbabilitiesMetric name="esm" filename="esm_probs.weights"/>
+        # Analysis using cached data
+        <PseudoPerplexityMetric name="perplex" metric="esm" use_cached_data="true" />
+    </SIMPLE_METRICS>
+    <FILTERS>
+    </FILTERS>
+    <MOVERS>
+        <RunSimpleMetrics name="load" metrics="esm"/>
+        <RunSimpleMetrics name="score" metrics="perplex"/>
+        <SampleSequenceFromProbabilities name="sample" metric="esm" pos_temp="0.4" aa_temp="0.4" prob_cutoff="0.0001" delta_prob_cutoff="0.1" max_mutations="20" use_cached_data="true" task_operations="rrf"/>
+        <SetupForSymmetry name="setup_symm" definition="%%sym%%"/>
+    </MOVERS>
+    <PROTOCOLS>
+    	<Add mover_name="setup_symm"/>
+        <Add mover_name="load"/>
+        <Add mover_name="sample"/>
+    </PROTOCOLS>
+    <OUTPUT scorefxn="beta_full"/>
+</ROSETTASCRIPTS>

@@ -1,0 +1,19 @@
+<ROSETTASCRIPTS>
+    <RESIDUE_SELECTORS>
+        <Chain name="res" chains="A"/>
+    </RESIDUE_SELECTORS>
+    <SIMPLE_METRICS>
+        # Inference
+        <ProteinMPNNProbabilitiesMetric name="mpnn" residue_selector="res" />
+    </SIMPLE_METRICS>
+    <FILTERS>
+    </FILTERS>
+    <MOVERS>
+        <RunSimpleMetrics name="inference" metrics="mpnn"/>
+        <SaveProbabilitiesMetricMover name="save" metric="mpnn" filename="%%weights%%" filetype="weights" use_cached_data="true"/>
+    </MOVERS>
+    <PROTOCOLS>
+        <Add mover_name="inference"/>
+        <Add mover_name="save"/>
+    </PROTOCOLS>
+</ROSETTASCRIPTS>
