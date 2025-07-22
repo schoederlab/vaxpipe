@@ -27,10 +27,9 @@ The goal of `vaxpipe` is to support **vaccine design** workflows by:
 ```
 vaxpipe/
 ├── snakefile # the main workflow
+├── config.yaml # containes path information
 ├── input_files/ # containes the necessary input .xml files to run the rosetta jobs
-├── test/ # containes the test input pdb for validation
-├── validate/ # containes the necessary input for validating proposed mutations
-└── output/ # Relaxed models and symmetry files
+└── test/ # containes a test input pdb for validation/benchmarking
 
 ```
 ---
