@@ -10,7 +10,7 @@
     </FILTERS>
     <MOVERS>
         <RunSimpleMetrics name="inference" metrics="mpnn"/>
-        <SaveProbabilitiesMetricMover name="save" metric="mpnn" filename="%%weights%%" filetype="weights" use_cached_data="true"/>
+        <SaveProbabilitiesMetricMover name="save" metric="mpnn" filename="mpnn_probs.weights" filetype="weights" use_cached_data="true"/>
     </MOVERS>
     <PROTOCOLS>
         <Add mover_name="inference"/>

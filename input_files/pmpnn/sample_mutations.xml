@@ -5,7 +5,7 @@
     <RESIDUE_SELECTORS>
     </RESIDUE_SELECTORS>
     <TASKOPERATIONS>
-        <ReadResfile name="rrf" filename="./resfile.resfile"/>
+        <ReadResfile name="rrf" filename="%%resfile%%"/>
     </TASKOPERATIONS>
     <SIMPLE_METRICS>
         # Inference

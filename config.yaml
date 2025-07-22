@@ -5,8 +5,7 @@ rosettadir: /home/iwe14/ML_Rosetta/rosetta.source.release-362/
 workdir: /home/iwe14/Documents/test
 
 # List of samples
-samples:
-  - MERS
+samples: MERS
 
 # Tag used to distinguish output variants
 tag: test
