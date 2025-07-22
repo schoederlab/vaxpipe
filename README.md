@@ -44,3 +44,9 @@ pip install biopython tqdm
 ```
 
 change the `config.yaml` file with the corresponding paths
+
+## Execution
+
+```
+snakemake -j 12
+```
