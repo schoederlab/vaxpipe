@@ -1,0 +1,39 @@
+Assuming unrestricted shared filesystem usage.
+None
+host: iwe546190
+Building DAG of jobs...
+Using shell: /usr/bin/bash
+Provided cores: 4
+Rules claiming more threads will be scaled down.
+Job stats:
+job                  count
+-----------------  -------
+all                      1
+make_symmdef_file        1
+total                    2
+
+Select jobs to execute...
+Execute 1 jobs...
+[Tue Jul 22 10:43:22 2025]
+localrule make_symmdef_file:
+    input: /home/iwe14/Documents/test/MERS.pdb
+    output: /home/iwe14/Documents/test/MERS.symm
+    jobid: 1
+    reason: Missing output files: /home/iwe14/Documents/test/MERS.symm
+    wildcards: sample=MERS
+    resources: tmpdir=/tmp
+[Tue Jul 22 10:43:23 2025]
+Finished jobid: 1 (Rule: make_symmdef_file)
+1 of 2 steps (50%) done
+Select jobs to execute...
+Execute 1 jobs...
+[Tue Jul 22 10:43:23 2025]
+localrule all:
+    input: /home/iwe14/Documents/test/MERS.symm
+    jobid: 0
+    reason: Input files updated by another job: /home/iwe14/Documents/test/MERS.symm
+    resources: tmpdir=/tmp
+[Tue Jul 22 10:43:23 2025]
+Finished jobid: 0 (Rule: all)
+2 of 2 steps (100%) done
+Complete log(s): /home/iwe14/software/vaxpipe/.snakemake/log/2025-07-22T104322.698699.snakemake.log

@@ -1,0 +1,8 @@
+Assuming unrestricted shared filesystem usage.
+None
+host: iwe546190
+Building DAG of jobs...
+MissingInputException in rule all in file "/home/iwe14/software/vaxpipe/snakefile", line 11:
+Missing input files for rule all:
+    affected files:
+        /home/iwe14/Documents/test/MERS_relax_test1.sc
