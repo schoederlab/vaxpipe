@@ -1,13 +1,15 @@
 # Snakefile
 
 import os
+import yaml
+
+configfile: "config.yaml"
 
 # Configuration
-ROSETTA_DIR = os.environ.get("ROSETTA", "/home/iwe14/ML_Rosetta/rosetta.source.release-362")
-WORKDIR = "/home/iwe14/Documents/test"
-
-SAMPLES = ["MERS"]
-TAG = "test1"
+ROSETTA_DIR = config["rosettadir"]
+WORKDIR = config["workdir"]
+SAMPLES = config["samples"]
+TAG = config["tag"]
 
 rule all:
     input:
