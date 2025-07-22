@@ -18,17 +18,17 @@ The goal of `vaxpipe` is to support **vaccine design** workflows by:
 
 ---
 
-## ⚙️ Requirements
+## Requirements
 
 - Python ≥ 3.7
 - [Snakemake](https://snakemake.readthedocs.io/en/stable/)
 - Rosetta compiled with pytorch and tensorflow libraries (`relax`, symmetry tools)
 
 ## Repository Structure
-
+```
 vaxpipe/
 ├── snakefile # the main workflow
 ├── input_files/ # containes the necessary input .xml files to run the rosetta jobs
 └── output/ # Relaxed models and symmetry files
-
+```
 ---
