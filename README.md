@@ -18,7 +18,7 @@ The goal of `vaxpipe` is to support **vaccine design** workflows by:
 
 ## Requirements
 
-- Python ≥ 3.7
+- Python ≥ 3.7, Biopython, tqdm
 - [Snakemake](https://snakemake.readthedocs.io/en/stable/)
 - Rosetta compiled with pytorch and tensorflow libraries (`relax`, symmetry tools)
 
@@ -28,6 +28,8 @@ The goal of `vaxpipe` is to support **vaccine design** workflows by:
 vaxpipe/
 ├── snakefile # the main workflow
 ├── input_files/ # containes the necessary input .xml files to run the rosetta jobs
+├── test/ # containes the test input pdb for validation
+├── validate/ # containes the necessary input for validating proposed mutations
 └── output/ # Relaxed models and symmetry files
 
 ```
@@ -48,5 +50,5 @@ change the `config.yaml` file with the corresponding paths
 ## Execution
 
 ```
-snakemake -j 12
+snakemake -j 12 # executing vaxpipe using 12 cpu cores
 ```
