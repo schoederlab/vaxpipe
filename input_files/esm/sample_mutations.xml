@@ -9,7 +9,7 @@
     </TASKOPERATIONS>
     <SIMPLE_METRICS>
         # Inference
-        <LoadedProbabilitiesMetric name="esm" filename="esm_probs.weights"/>
+        <LoadedProbabilitiesMetric name="esm" filename="%%weights%%"/>
         # Analysis using cached data
         <PseudoPerplexityMetric name="perplex" metric="esm" use_cached_data="true" />
     </SIMPLE_METRICS>

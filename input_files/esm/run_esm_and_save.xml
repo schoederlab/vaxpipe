@@ -10,7 +10,7 @@
     </FILTERS>
     <MOVERS>
         <RunSimpleMetrics name="inference" metrics="esm"/>
-        <SaveProbabilitiesMetricMover name="save" metric="esm" filename="esm_probs.weights" filetype="weights" use_cached_data="true"/>
+        <SaveProbabilitiesMetricMover name="save" metric="esm" filename="%%weights%%" filetype="weights" use_cached_data="true"/>
     </MOVERS>
     <PROTOCOLS>
         <Add mover_name="inference"/>

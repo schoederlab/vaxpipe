@@ -113,15 +113,15 @@ def main(args):
     # writing in batches ?
     batch = args.batch
     
-    # processing files
-    if os.path.isfile(input_path):
-        files = [input_path]
-    else:
-        files = get_files_from_path(path=input_path, filesuffix='.pdb')
-        
-    if not files:
-        print(f'[ERROR] No pdb files found in "{input_path}". Exit.')
-        exit(1)
+    files = []
+
+    for path in input_path:
+        if os.path.isfile(path):
+            files.append(path)
+        elif os.path.isdir(path):
+            files.extend(get_files_from_path(path=path, filesuffix='.pdb'))
+        else:
+            print(f'[ERROR] Path "{path}" is neither a file nor a directory. Skipping.')
     
     # exit(1)
     if PROGRESS and len(files) > 1:
@@ -161,7 +161,7 @@ if __name__ == '__main__':
                             'are replaced by "X".\n\n', 
                             formatter_class=RawTextHelpFormatter)
     
-    parser.add_argument('-p', '--path', type=str, dest='pdbpath', required=True,
+    parser.add_argument('-p', '--path', type=str, dest='pdbpath', nargs='+', required=True,
                         help='Directory for the pdb models to create fasta file.\n' +
                         'All files with the suffix ".pdb" will be processed.\n' +
                         'Single pdbs are also allowed.')
@@ -182,7 +182,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     # Create output name
-    check_existense(args.pdbpath)
+    #check_existense(args.pdbpath)
     if not args.output:
         if os.path.isfile(args.pdbpath):
             args.output = os.path.basename(args.pdbpath).replace('.pdb', '.fasta')

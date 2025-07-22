@@ -55,7 +55,7 @@
 		-->
 	</SIMPLE_METRICS>
 	<MOVERS>
-		<SetupForSymmetry name="setup_symm" definition="%%symfile%%" />
+		<SetupForSymmetry name="setup_symm" definition="%%sym%%" />
 		
 		<SymPackRotamersMover name="packer_design" scorefxn="r15" nloop="3" 
 			task_operations="ifcl,use_input_rotamer,extrarot,no_repack_design,no_design,upweight_interface"/>

@@ -2,10 +2,12 @@
 rosettadir: /home/iwe14/ML_Rosetta/rosetta.source.release-362/
 
 # Path to working directory
-workdir: /home/iwe14/Documents/test
+workdir: /home/iwe14/software/vaxpipe/test
+
+inputdir: /home/iwe14/software/vaxpipe/input_files
 
 # List of samples
-samples: MERS
+samples: 3ft7
 
 # Tag used to distinguish output variants
 tag: test
