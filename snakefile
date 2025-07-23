@@ -55,7 +55,7 @@ rule clean_pdb:
         """
         {ROSETTA_DIR}//main/source/bin/score_jd2.pytorchtensorflow.linuxgccrelease \
         -renumber_pdb -ignore_unrecognized_res -s {input.pdb} \
-        -out:pdb -out:suffix _clean
+        -out:pdb -out:suffix _clean -out:path:all {WORKDIR}
         """
 
 rule make_symmdef_file1:
