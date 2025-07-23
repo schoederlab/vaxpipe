@@ -41,7 +41,7 @@ generate snakemake conda environment
 ```
 conda create -c conda-forge -c bioconda -n snakemake snakemake
 conda activate snakemake
-pip install biopython tqdm
+pip install biopython tqdm matplotlib
 ```
 
 change the `config.yaml` file with the corresponding paths
