@@ -15,6 +15,7 @@ TAG = config["tag"]
 rule all:
     input:
         #preprocessing
+        expand(f"{WORKDIR}/{{sample}}_clean.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}.symm", sample=SAMPLES),
         expand(f"{WORKDIR}/relax_{{sample}}_INPUT_0001.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_2.symm", sample=SAMPLES),
@@ -33,11 +34,33 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_esm_frequency.png", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_mpnn_frequency.png", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_indes_frequency.png", sample=SAMPLES)
+        expand(f"{WORKDIR}/{{sample}}_indes_frequency.png", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_esm_mutations.txt", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_mpnn_mutations.txt", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_indes_mutations.txt", sample=SAMPLES),
+        #design
+        expand(f"{WORKDIR}/{{sample}}_design_esm/", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_control_esm/", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_design_mpnn/", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_control_mpnn/", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_design_indes/", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_control_indes/", sample=SAMPLES)
+
+rule clean_pdb:
+    input:
+        pdb = f"{WORKDIR}/{{sample}}.pdb"
+    output:
+        pdb = f"{WORKDIR}/{{sample}}_clean.pdb"
+    shell:
+        """
+        {ROSETTA_DIR}//main/source/bin/score_jd2.pytorchtensorflow.linuxgccrelease \
+        -renumber_pdb -ignore_unrecognized_res -s {input.pdb} \
+        -out:pdb -out:suffix _clean
+        """
 
 rule make_symmdef_file1:
     input:
-        pdb = f"{WORKDIR}/{{sample}}.pdb"
+        pdb = f"{WORKDIR}/{{sample}}_clean.pdb"
     output:
         symm = f"{WORKDIR}/{{sample}}.symm",
         pdb = f"{WORKDIR}/{{sample}}_INPUT.pdb"
@@ -290,4 +313,137 @@ rule plot_indes_frequencies:
         -o {output.figure}
         """
 
-#TODO: include the design part
+rule get_esm_mutation_list:
+    input:
+        csv = f"{WORKDIR}/{{sample}}_esm_frequency.csv"
+    output:
+        txt = f"{WORKDIR}/{{sample}}_esm_mutations.txt"
+    params:
+        script = f"{INPUTDIR}/validate/design-mutations.py"
+    shell:
+        """
+        python {params.script} \
+        -i {input.csv} \
+        -o {output.txt} \
+        """
+
+rule get_pmpnn_mutation_list:
+    input:
+        csv = f"{WORKDIR}/{{sample}}_mpnn_frequency.csv"
+    output:
+        txt = f"{WORKDIR}/{{sample}}_mpnn_mutations.txt"
+    params:
+        script = f"{INPUTDIR}/validate/design-mutations.py"
+    shell:
+        """
+        python {params.script} \
+        -i {input.csv} \
+        -o {output.txt} \
+        """
+
+rule get_indes_mutation_list:
+    input:
+        csv = f"{WORKDIR}/{{sample}}_indes_frequency.csv"
+    output:
+        txt = f"{WORKDIR}/{{sample}}_indes_mutations.txt"
+    params:
+        script = f"{INPUTDIR}/validate/design-mutations.py"
+    shell:
+        """
+        python {params.script} \
+        -i {input.csv} \
+        -o {output.txt} \
+        """
+
+rule design_esm:
+    input:
+        txt = f"{WORKDIR}/{{sample}}_esm_mutations.txt",
+        symfile = f"{WORKDIR}/{{sample}}_2.symm",
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+    output:
+        designdir = f"{WORKDIR}/{{sample}}_design_esm/"
+    params:
+        script = f"{INPUTDIR}/validate/command_multiple_design.sh",
+        xml = f"{INPUTDIR}/validate/design.v02.xml"
+        
+    shell:
+        """
+        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
+        """
+
+rule control_esm:
+    input:
+        txt = f"{WORKDIR}/{{sample}}_esm_mutations.txt",
+        symfile = f"{WORKDIR}/{{sample}}_2.symm",
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+    output:
+        designdir = f"{WORKDIR}/{{sample}}_control_esm/"
+    params:
+        script = f"{INPUTDIR}/validate/command_multiple_control.sh",
+        xml = f"{INPUTDIR}/validate/design.v02.xml"
+    shell:
+        """
+        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
+        """
+
+rule design_mpnn:
+    input:
+        txt = f"{WORKDIR}/{{sample}}_mpnn_mutations.txt",
+        symfile = f"{WORKDIR}/{{sample}}_2.symm",
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+    output:
+        designdir = f"{WORKDIR}/{{sample}}_design_mpnn/"
+    params:
+        script = f"{INPUTDIR}/validate/command_multiple_design.sh",
+        xml = f"{INPUTDIR}/validate/design.v02.xml"
+        
+    shell:
+        """
+        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
+        """
+
+rule control_mpnn:
+    input:
+        txt = f"{WORKDIR}/{{sample}}_mpnn_mutations.txt",
+        symfile = f"{WORKDIR}/{{sample}}_2.symm",
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+    output:
+        designdir = f"{WORKDIR}/{{sample}}_control_mpnn/"
+    params:
+        script = f"{INPUTDIR}/validate/command_multiple_control.sh",
+        xml = f"{INPUTDIR}/validate/design.v02.xml"
+    shell:
+        """
+        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
+        """
+
+rule design_indes:
+    input:
+        txt = f"{WORKDIR}/{{sample}}_indes_mutations.txt",
+        symfile = f"{WORKDIR}/{{sample}}_2.symm",
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+    output:
+        designdir = f"{WORKDIR}/{{sample}}_design_indes/"
+    params:
+        script = f"{INPUTDIR}/validate/command_multiple_design.sh",
+        xml = f"{INPUTDIR}/validate/design.v02.xml"
+        
+    shell:
+        """
+        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
+        """
+
+rule control_indes:
+    input:
+        txt = f"{WORKDIR}/{{sample}}_indes_mutations.txt",
+        symfile = f"{WORKDIR}/{{sample}}_2.symm",
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+    output:
+        designdir = f"{WORKDIR}/{{sample}}_control_indes/"
+    params:
+        script = f"{INPUTDIR}/validate/command_multiple_control.sh",
+        xml = f"{INPUTDIR}/validate/design.v02.xml"
+    shell:
+        """
+        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
+        """
