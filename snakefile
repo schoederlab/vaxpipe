@@ -15,8 +15,9 @@ TAG = config["tag"]
 rule all:
     input:
         #preprocessing
-        expand(f"{WORKDIR}/{{sample}}_clean.pdb", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_clean_0001.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}.symm", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_INPUT.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/relax_{{sample}}_INPUT_0001.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_2.symm", sample=SAMPLES),
         #esm
@@ -35,6 +36,9 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}_esm_frequency.png", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_mpnn_frequency.png", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_indes_frequency.png", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_esm_frequency.csv", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_mpnn_frequency.csv", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_indes_frequency.csv", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_esm_mutations.txt", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_mpnn_mutations.txt", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_indes_mutations.txt", sample=SAMPLES),
@@ -50,7 +54,7 @@ rule clean_pdb:
     input:
         pdb = f"{WORKDIR}/{{sample}}.pdb"
     output:
-        pdb = f"{WORKDIR}/{{sample}}_clean.pdb"
+        pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
     shell:
         """
         {ROSETTA_DIR}//main/source/bin/score_jd2.pytorchtensorflow.linuxgccrelease \
@@ -60,14 +64,26 @@ rule clean_pdb:
 
 rule make_symmdef_file1:
     input:
-        pdb = f"{WORKDIR}/{{sample}}_clean.pdb"
+        pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
     output:
         symm = f"{WORKDIR}/{{sample}}.symm",
-        pdb = f"{WORKDIR}/{{sample}}_INPUT.pdb"
+        pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
     shell:
         """
         {ROSETTA_DIR}/main/source/src/apps/public/symmetry/make_symmdef_file.pl \
         -p {input.pdb} -a A -i B > {output.symm}
+        """
+
+rule rename_file:
+    input:
+        pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
+    output:
+        pdb = f"{WORKDIR}/{{sample}}_INPUT.pdb"
+    wildcard_constraints:
+        sample = "(?!.*(_clean_0001)).+"
+    shell:
+        """
+        mv {input.pdb} {output.pdb}
         """
 
 rule relax:
@@ -270,7 +286,8 @@ rule plot_esm_frequencies:
         fastafile = f"{WORKDIR}/{{sample}}_esm.fasta",
         wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
     output:
-        figure = f"{WORKDIR}/{{sample}}_esm_frequency.png"
+        figure = f"{WORKDIR}/{{sample}}_esm_frequency.png",
+        csv = f"{WORKDIR}/{{sample}}_esm_frequency.csv"
     params:
         script = f"{INPUTDIR}/validate/plot_frequencies.py"
     shell:
@@ -286,7 +303,8 @@ rule plot_mpnn_frequencies:
         fastafile = f"{WORKDIR}/{{sample}}_pmpnn.fasta",
         wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
     output:
-        figure = f"{WORKDIR}/{{sample}}_mpnn_frequency.png"
+        figure = f"{WORKDIR}/{{sample}}_mpnn_frequency.png",
+        csv = f"{WORKDIR}/{{sample}}_mpnn_frequency.csv"
     params:
         script = f"{INPUTDIR}/validate/plot_frequencies.py"
     shell:
@@ -302,7 +320,8 @@ rule plot_indes_frequencies:
         fastafile = f"{WORKDIR}/{{sample}}_in-des.fasta",
         wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
     output:
-        figure = f"{WORKDIR}/{{sample}}_indes_frequency.png"
+        figure = f"{WORKDIR}/{{sample}}_indes_frequency.png",
+        csv = f"{WORKDIR}/{{sample}}_indes_frequency.csv"
     params:
         script = f"{INPUTDIR}/validate/plot_frequencies.py"
     shell:
