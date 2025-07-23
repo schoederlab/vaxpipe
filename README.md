@@ -18,7 +18,7 @@ The goal of `vaxpipe` is to support **vaccine design** workflows by:
 
 ## Requirements
 
-- Python ≥ 3.7, Biopython, tqdm
+- `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
 - [Snakemake](https://snakemake.readthedocs.io/en/stable/)
 - Rosetta compiled with pytorch and tensorflow libraries (`relax`, symmetry tools)
 

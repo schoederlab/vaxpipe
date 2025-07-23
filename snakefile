@@ -28,7 +28,13 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}_pmpnn.fasta", sample=SAMPLES),
         #interface design
         expand(f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
-        expand(f"{WORKDIR}/{{sample}}_in-des.fasta", sample=SAMPLES)
+        expand(f"{WORKDIR}/{{sample}}_in-des.fasta", sample=SAMPLES),
+        #analysis
+        expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_esm_frequency.png", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_mpnn_frequency.png", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_indes_frequency.png", sample=SAMPLES)
+
 rule make_symmdef_file1:
     input:
         pdb = f"{WORKDIR}/{{sample}}.pdb"
@@ -172,7 +178,7 @@ rule interface_design:
         -beta \
         -nstruct 11 \
         -out:path:all {WORKDIR} \
-        -out:prefix indes_
+        -out:prefix indes_ \
         -overwrite > {WORKDIR}/interface_design.log
         """
 
@@ -220,3 +226,68 @@ rule get_fasta_in_des:
         -c A \
         -o {output.fastafile}
         """
+
+rule get_wt_fasta:
+    input:
+        pdb = f"{WORKDIR}/{{sample}}.pdb"
+    output:
+        fastafile = f"{WORKDIR}/{{sample}}_WT.fasta"
+    params:
+        script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
+    shell:
+        """
+        python {params.script} \
+        -p {input.pdb} \
+        -c A \
+        -o {output.fastafile}
+        """
+
+rule plot_esm_frequencies:
+    input:
+        fastafile = f"{WORKDIR}/{{sample}}_esm.fasta",
+        wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
+    output:
+        figure = f"{WORKDIR}/{{sample}}_esm_frequency.png"
+    params:
+        script = f"{INPUTDIR}/validate/plot_frequencies.py"
+    shell:
+        """
+        python {params.script} \
+        -i {input.fastafile} \
+        -r {input.wtfile} \
+        -o {output.figure}
+        """
+
+rule plot_mpnn_frequencies:
+    input:
+        fastafile = f"{WORKDIR}/{{sample}}_pmpnn.fasta",
+        wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
+    output:
+        figure = f"{WORKDIR}/{{sample}}_mpnn_frequency.png"
+    params:
+        script = f"{INPUTDIR}/validate/plot_frequencies.py"
+    shell:
+        """
+        python {params.script} \
+        -i {input.fastafile} \
+        -r {input.wtfile} \
+        -o {output.figure}
+        """
+
+rule plot_indes_frequencies:
+    input:
+        fastafile = f"{WORKDIR}/{{sample}}_in-des.fasta",
+        wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
+    output:
+        figure = f"{WORKDIR}/{{sample}}_indes_frequency.png"
+    params:
+        script = f"{INPUTDIR}/validate/plot_frequencies.py"
+    shell:
+        """
+        python {params.script} \
+        -i {input.fastafile} \
+        -r {input.wtfile} \
+        -o {output.figure}
+        """
+
+#TODO: include the design part
