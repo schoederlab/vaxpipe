@@ -18,18 +18,18 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}_clean_0001.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}.symm", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_INPUT.pdb", sample=SAMPLES),
-        expand(f"{WORKDIR}/relax_{{sample}}_INPUT_0001.pdb", sample=SAMPLES),
+        expand(f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_2.symm", sample=SAMPLES),
         #esm
         expand(f"{WORKDIR}/{{sample}}_esm_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/esm_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
+        expand(f"{WORKDIR}/esm_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
         expand(f"{WORKDIR}/{{sample}}_esm.fasta", sample=SAMPLES),
         #mpnn
         expand(f"{WORKDIR}/{{sample}}_mpnn_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/mpnn_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
+        expand(f"{WORKDIR}/mpnn_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
         expand(f"{WORKDIR}/{{sample}}_pmpnn.fasta", sample=SAMPLES),
         #interface design
-        expand(f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
+        expand(f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
         expand(f"{WORKDIR}/{{sample}}_in-des.fasta", sample=SAMPLES),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
@@ -50,6 +50,8 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}_design_indes/", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_control_indes/", sample=SAMPLES)
 
+ruleorder: clean_pdb > make_symmdef_file1 > rename_file > make_symmdef_file2 > run_esm > esm_sampling > run_pmpnn > pmpnn_sampling
+
 rule clean_pdb:
     input:
         pdb = f"{WORKDIR}/{{sample}}.pdb"
@@ -57,7 +59,7 @@ rule clean_pdb:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
     shell:
         """
-        {ROSETTA_DIR}//main/source/bin/score_jd2.pytorchtensorflow.linuxgccrelease \
+        {ROSETTA_DIR}/main/source/bin/score_jd2.pytorchtensorflow.linuxgccrelease \
         -renumber_pdb -ignore_unrecognized_res -s {input.pdb} \
         -out:pdb -out:suffix _clean -out:path:all {WORKDIR}
         """
@@ -78,12 +80,10 @@ rule rename_file:
     input:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
     output:
-        pdb = f"{WORKDIR}/{{sample}}_INPUT.pdb"
-    wildcard_constraints:
-        sample = "(?!.*(_clean_0001)).+"
+        pdbs = f"{WORKDIR}/{{sample}}_INPUT.pdb"
     shell:
         """
-        mv {input.pdb} {output.pdb}
+        mv {input.pdb} {output.pdbs}
         """
 
 rule relax:
@@ -110,7 +110,7 @@ rule make_symmdef_file2:
         pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001.pdb"
     output:
         symm = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     shell:
         """
         {ROSETTA_DIR}/main/source/src/apps/public/symmetry/make_symmdef_file.pl \
@@ -119,7 +119,7 @@ rule make_symmdef_file2:
 
 rule run_esm:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
         weights = f"{WORKDIR}/{{sample}}_esm_probs.weights"
     params:
@@ -136,11 +136,11 @@ rule run_esm:
 
 rule esm_sampling:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb",
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
-        weights=f"{WORKDIR}/{{sample}}_esm_probs.weights"
+        weights = f"{WORKDIR}/{{sample}}_esm_probs.weights"
     output:
-        pdbs = f"{WORKDIR}/esm_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb"
+        pdbs = f"{WORKDIR}/esm_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb"
     params:
         protocol = f"{INPUTDIR}/esm/sample_mutations.xml",
         resfile = f"{INPUTDIR}/esm/resfile.resfile"
@@ -161,7 +161,7 @@ rule esm_sampling:
 
 rule run_pmpnn:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
         weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
     params:
@@ -177,11 +177,11 @@ rule run_pmpnn:
 
 rule pmpnn_sampling:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb",
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
-        weights=f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
+        weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
     output:
-        pdbs = f"{WORKDIR}/mpnn_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb"
+        pdbs = f"{WORKDIR}/mpnn_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb"
     params:
         protocol = f"{INPUTDIR}/pmpnn/sample_mutations.xml",
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile"
@@ -202,10 +202,10 @@ rule pmpnn_sampling:
 
 rule interface_design:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb",
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm"
     output:
-        pdb = f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb"
+        pdb = f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb"
     params:
         protocol = f"{INPUTDIR}/interface-design/sym_design.xml" 
     shell:
@@ -223,7 +223,7 @@ rule interface_design:
 
 rule get_fasta_from_esm:
     input:
-        pdbs = expand(f"{WORKDIR}/esm_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)])
+        pdbs = expand(f"{WORKDIR}/esm_relax_{{{{sample}}}}_INPUT_0001_INPUT_{{i:04d}}.pdb", i=range(1, 12))
     output:
         fastafile = f"{WORKDIR}/{{sample}}_esm.fasta"
     params:
@@ -238,7 +238,7 @@ rule get_fasta_from_esm:
 
 rule get_fasta_from_pmpnn:
     input:
-        pdbs = expand(f"{WORKDIR}/mpnn_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)])
+        pdbs = expand(f"{WORKDIR}/mpnn_relax_{{{{sample}}}}_INPUT_0001_INPUT_{{i:04d}}.pdb", i=range(1, 12))
     output:
         fastafile = f"{WORKDIR}/{{sample}}_pmpnn.fasta"
     params:
@@ -253,7 +253,7 @@ rule get_fasta_from_pmpnn:
 
 rule get_fasta_in_des:
     input:
-        pdbs = expand(f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_symm_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)])
+        pdbs = expand(f"{WORKDIR}/indes_relax_{{{{sample}}}}_INPUT_0001_INPUT_{{i:04d}}.pdb", i=range(1, 12))
     output:
         fastafile = f"{WORKDIR}/{{sample}}_in-des.fasta"
     params:
@@ -378,7 +378,7 @@ rule design_esm:
     input:
         txt = f"{WORKDIR}/{{sample}}_esm_mutations.txt",
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
         designdir = f"{WORKDIR}/{{sample}}_design_esm/"
     params:
@@ -394,7 +394,7 @@ rule control_esm:
     input:
         txt = f"{WORKDIR}/{{sample}}_esm_mutations.txt",
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
         designdir = f"{WORKDIR}/{{sample}}_control_esm/"
     params:
@@ -409,7 +409,7 @@ rule design_mpnn:
     input:
         txt = f"{WORKDIR}/{{sample}}_mpnn_mutations.txt",
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
         designdir = f"{WORKDIR}/{{sample}}_design_mpnn/"
     params:
@@ -425,7 +425,7 @@ rule control_mpnn:
     input:
         txt = f"{WORKDIR}/{{sample}}_mpnn_mutations.txt",
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
         designdir = f"{WORKDIR}/{{sample}}_control_mpnn/"
     params:
@@ -440,7 +440,7 @@ rule design_indes:
     input:
         txt = f"{WORKDIR}/{{sample}}_indes_mutations.txt",
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
         designdir = f"{WORKDIR}/{{sample}}_design_indes/"
     params:
@@ -456,7 +456,7 @@ rule control_indes:
     input:
         txt = f"{WORKDIR}/{{sample}}_indes_mutations.txt",
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_symm.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
         designdir = f"{WORKDIR}/{{sample}}_control_indes/"
     params:
