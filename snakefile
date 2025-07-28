@@ -50,7 +50,7 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}_design_indes/", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_control_indes/", sample=SAMPLES)
 
-ruleorder: clean_pdb > make_symmdef_file1 > rename_file > make_symmdef_file2 > run_esm > esm_sampling > run_pmpnn > pmpnn_sampling
+ruleorder: clean_pdb > make_symmdef_file1 > rename_file > make_symmdef_file2
 
 rule clean_pdb:
     input:
@@ -380,7 +380,7 @@ rule design_esm:
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
-        designdir = f"{WORKDIR}/{{sample}}_design_esm/"
+        designdir = directory(f"{WORKDIR}/{{sample}}_design_esm/")
     params:
         script = f"{INPUTDIR}/validate/command_multiple_design.sh",
         xml = f"{INPUTDIR}/validate/design.v02.xml"
@@ -396,7 +396,7 @@ rule control_esm:
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
-        designdir = f"{WORKDIR}/{{sample}}_control_esm/"
+        designdir = directory(f"{WORKDIR}/{{sample}}_control_esm/")
     params:
         script = f"{INPUTDIR}/validate/command_multiple_control.sh",
         xml = f"{INPUTDIR}/validate/design.v02.xml"
@@ -411,7 +411,7 @@ rule design_mpnn:
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
-        designdir = f"{WORKDIR}/{{sample}}_design_mpnn/"
+        designdir = directory(f"{WORKDIR}/{{sample}}_design_mpnn/")
     params:
         script = f"{INPUTDIR}/validate/command_multiple_design.sh",
         xml = f"{INPUTDIR}/validate/design.v02.xml"
@@ -427,7 +427,7 @@ rule control_mpnn:
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
-        designdir = f"{WORKDIR}/{{sample}}_control_mpnn/"
+        designdir = directory(f"{WORKDIR}/{{sample}}_control_mpnn/")
     params:
         script = f"{INPUTDIR}/validate/command_multiple_control.sh",
         xml = f"{INPUTDIR}/validate/design.v02.xml"
@@ -442,7 +442,7 @@ rule design_indes:
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
-        designdir = f"{WORKDIR}/{{sample}}_design_indes/"
+        designdir = directory(f"{WORKDIR}/{{sample}}_design_indes/")
     params:
         script = f"{INPUTDIR}/validate/command_multiple_design.sh",
         xml = f"{INPUTDIR}/validate/design.v02.xml"
@@ -458,7 +458,7 @@ rule control_indes:
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
     output:
-        designdir = f"{WORKDIR}/{{sample}}_control_indes/"
+        designdir = directory(f"{WORKDIR}/{{sample}}_control_indes/")
     params:
         script = f"{INPUTDIR}/validate/command_multiple_control.sh",
         xml = f"{INPUTDIR}/validate/design.v02.xml"

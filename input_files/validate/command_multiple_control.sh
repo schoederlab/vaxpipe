@@ -6,7 +6,7 @@ source "$1"
 # Design or control for protocol
 protocol="control"
 outdir="output-control"
-nstruct=20
+nstruct=1
 
 # Create the output directory if it doesn't exist
 mkdir -p "$2"
@@ -19,11 +19,11 @@ for mut in "${mutations[@]}"; do
 
     # Run the command
     $ROSETTA/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
-        -parser:protocol "$4" \
+        -parser:protocol "$5" \
         -parser:script_vars mutpos=${mutpos} mut_aa=${mutaa} protocol=${protocol} symfile="$3" \
         -in:file:s "$4" \
         -corrections:beta_nov16 \
-        -out:path:all ${outdir} \
+        -out:path:all "$2" \
         -overwrite \
         -out:suffix _design_${mutpos}_${mutaa} \
         -nstruct ${nstruct} \
