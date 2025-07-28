@@ -22,14 +22,14 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}_2.symm", sample=SAMPLES),
         #esm
         expand(f"{WORKDIR}/{{sample}}_esm_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/esm_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
+        expand(f"{WORKDIR}/esm_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 101)]),
         expand(f"{WORKDIR}/{{sample}}_esm.fasta", sample=SAMPLES),
         #mpnn
         expand(f"{WORKDIR}/{{sample}}_mpnn_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/mpnn_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
+        expand(f"{WORKDIR}/mpnn_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 101)]),
         expand(f"{WORKDIR}/{{sample}}_pmpnn.fasta", sample=SAMPLES),
         #interface design
-        expand(f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 12)]),
+        expand(f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 101)]),
         expand(f"{WORKDIR}/{{sample}}_in-des.fasta", sample=SAMPLES),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
