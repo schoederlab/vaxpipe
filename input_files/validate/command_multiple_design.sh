@@ -6,7 +6,7 @@ source "$1"
 # Design or control for protocol
 protocol="design"
 outdir="output-design"
-nstruct=1
+nstruct=100
 
 # Create the output directory if it doesn't exist
 mkdir -p "$2"

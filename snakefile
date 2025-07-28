@@ -48,7 +48,11 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}_design_mpnn/", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_control_mpnn/", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_design_indes/", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_control_indes/", sample=SAMPLES)
+        expand(f"{WORKDIR}/{{sample}}_control_indes/", sample=SAMPLES),
+        #plotting
+        expand(f"{WORKDIR}/{{sample}}_energydifference_esm.png", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_energydifference_mpnn.png", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_energydifference_indes.png", sample=SAMPLES)
 
 ruleorder: clean_pdb > make_symmdef_file1 > rename_file > make_symmdef_file2
 
@@ -132,6 +136,7 @@ rule run_esm:
         -parser:script_vars weights={output.weights} \
         -beta \
         -auto_download \
+        -out:path:all {WORKDIR}
         """
 
 rule esm_sampling:
@@ -152,7 +157,7 @@ rule esm_sampling:
         -parser:script_vars sym={input.symm} \
         -parser:script_vars weights={input.weights} \
         -parser:script_vars resfile={params.resfile} \
-        -nstruct 11 \
+        -nstruct 100 \
         -out:path:all {WORKDIR} \
         -out:prefix esm_ \
         -beta \
@@ -195,7 +200,7 @@ rule pmpnn_sampling:
         -parser:script_vars resfile={params.resfile} \
         -out:path:all {WORKDIR} \
         -out:prefix mpnn_ \
-        -nstruct 11 \
+        -nstruct 100 \
         -beta \
         -overwrite > {WORKDIR}/pmpnn_sampling.log
         """
@@ -215,7 +220,7 @@ rule interface_design:
         -s {input.pdb} \
         -parser:script_vars sym={input.symm} \
         -beta \
-        -nstruct 11 \
+        -nstruct 100 \
         -out:path:all {WORKDIR} \
         -out:prefix indes_ \
         -overwrite > {WORKDIR}/interface_design.log
@@ -465,4 +470,43 @@ rule control_indes:
     shell:
         """
         bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
+        """
+
+rule plot_energy_esm:
+    input:
+        directory_control = f"{WORKDIR}/{{sample}}_control_esm/", 
+        directory_design = f"{WORKDIR}/{{sample}}_design_esm/"
+    output:
+        image = f"{WORKDIR}/{{sample}}_energydifference_esm.png"
+    params:
+        script = f"{INPUTDIR}/validate/plot_energies.py"
+    shell:
+        """
+        python {params.script} -i1 {input.directory_design} -i2 {input.directory_control} -o {output.image}
+        """
+
+rule plot_energy_mpnn:
+    input:
+        directory_control = f"{WORKDIR}/{{sample}}_control_mpnn/", 
+        directory_design = f"{WORKDIR}/{{sample}}_design_mpnn/"
+    output:
+        image = f"{WORKDIR}/{{sample}}_energydifference_mpnn.png"
+    params:
+        script = f"{INPUTDIR}/validate/plot_energies.py"
+    shell:
+        """
+        python {params.script} -i1 {input.directory_design} -i2 {input.directory_control} -o {output.image}
+        """
+
+rule plot_energy_indes:
+    input:
+        directory_control = f"{WORKDIR}/{{sample}}_control_indes/", 
+        directory_design = f"{WORKDIR}/{{sample}}_design_indes/"
+    output:
+        image = f"{WORKDIR}/{{sample}}_energydifference_indes.png"
+    params:
+        script = f"{INPUTDIR}/validate/plot_energies.py"
+    shell:
+        """
+        python {params.script} -i1 {input.directory_design} -i2 {input.directory_control} -o {output.image}
         """
