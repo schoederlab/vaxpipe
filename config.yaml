@@ -8,6 +8,3 @@ inputdir: /home/iwe14/software/vaxpipe/input_files
 
 # List of samples
 samples: 3ft7
-
-# Tag used to distinguish output variants
-tag: test

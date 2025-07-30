@@ -10,7 +10,6 @@ ROSETTA_DIR = config["rosettadir"]
 INPUTDIR = config["inputdir"]
 WORKDIR = config["workdir"]
 SAMPLES = config["samples"]
-TAG = config["tag"]
 
 #wildcards
 variants = ["esm", "pmpnn", "indes"]
