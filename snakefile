@@ -12,49 +12,43 @@ WORKDIR = config["workdir"]
 SAMPLES = config["samples"]
 TAG = config["tag"]
 
+#wildcards
+variants = ["esm", "pmpnn", "indes"]
+modes = ["design", "control"]
+    
 rule all:
     input:
         #preprocessing
         expand(f"{WORKDIR}/{{sample}}_clean_0001.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}.symm", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_INPUT.pdb", sample=SAMPLES),
-        expand(f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_new.pdb", sample=SAMPLES),
+        expand(f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_2.symm", sample=SAMPLES),
         #esm
         expand(f"{WORKDIR}/{{sample}}_esm_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/esm_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 101)]),
+        expand(f"{WORKDIR}/esm_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 51)]),
         expand(f"{WORKDIR}/{{sample}}_esm.fasta", sample=SAMPLES),
         #mpnn
         expand(f"{WORKDIR}/{{sample}}_mpnn_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/mpnn_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 101)]),
+        expand(f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 51)]),
         expand(f"{WORKDIR}/{{sample}}_pmpnn.fasta", sample=SAMPLES),
         #interface design
-        expand(f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 101)]),
-        expand(f"{WORKDIR}/{{sample}}_in-des.fasta", sample=SAMPLES),
+        expand(f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 51)]),
+        expand(f"{WORKDIR}/{{sample}}_indes.fasta", sample=SAMPLES),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_esm_frequency.png", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_mpnn_frequency.png", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_indes_frequency.png", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_esm_frequency.csv", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_mpnn_frequency.csv", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_indes_frequency.csv", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_esm_mutations.txt", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_mpnn_mutations.txt", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_indes_mutations.txt", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=variants),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}_frequency.png", sample=SAMPLES, variant=variants),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=variants),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}_mutations.txt", sample=SAMPLES, variant=variants),
         #design
-        expand(f"{WORKDIR}/{{sample}}_design_esm/", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_control_esm/", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_design_mpnn/", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_control_mpnn/", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_design_indes/", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_control_indes/", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_{{mode}}_{{variant}}/DONE.txt", sample=SAMPLES, mode=modes, variant=variants),
         #plotting
-        expand(f"{WORKDIR}/{{sample}}_energydifference_esm.png", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_energydifference_mpnn.png", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_energydifference_indes.png", sample=SAMPLES)
+        expand(f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=variants)
 
-ruleorder: clean_pdb > make_symmdef_file1 > rename_file > make_symmdef_file2
+ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > run_esm > run_pmpnn > esm_sampling \
+> pmpnn_sampling > interface_design > get_wt_fasta > get_fasta_from_pdbs > plot_frequencies > get_mutation_list \
+> run_design_or_control > plot_energy
 
 rule clean_pdb:
     input:
@@ -70,7 +64,7 @@ rule clean_pdb:
 
 rule make_symmdef_file1:
     input:
-        pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
+        pdb = lambda wc: f"{WORKDIR}/{wc.sample}_clean_0001.pdb"
     output:
         symm = f"{WORKDIR}/{{sample}}.symm",
         pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
@@ -84,7 +78,7 @@ rule rename_file:
     input:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
     output:
-        pdbs = f"{WORKDIR}/{{sample}}_INPUT.pdb"
+        pdbs = f"{WORKDIR}/{{sample}}_new.pdb"
     shell:
         """
         mv {input.pdb} {output.pdbs}
@@ -92,17 +86,17 @@ rule rename_file:
 
 rule relax:
     input:
-        pdb = f"{WORKDIR}/{{sample}}_INPUT.pdb",
+        pdb = f"{WORKDIR}/{{sample}}_new.pdb",
         symm = f"{WORKDIR}/{{sample}}.symm"
     output:
-        relaxed_pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001.pdb"
+        relaxed_pdb = f"{WORKDIR}/relax_{{sample}}_new_0001.pdb"
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/relax.pytorchtensorflow.linuxgccrelease \
         -s {input.pdb} \
         -constrain_relax_to_start_coords \
         -beta \
-        -nstruct 1 \
+        -nstruct 50 \
         -multiple_processes_writing_to_one_directory \
         -out:prefix relax_ \
         -out:path:all {WORKDIR} \
@@ -111,10 +105,10 @@ rule relax:
 
 rule make_symmdef_file2:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001.pdb"
     output:
         symm = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     shell:
         """
         {ROSETTA_DIR}/main/source/src/apps/public/symmetry/make_symmdef_file.pl \
@@ -123,7 +117,7 @@ rule make_symmdef_file2:
 
 rule run_esm:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
         weights = f"{WORKDIR}/{{sample}}_esm_probs.weights"
     params:
@@ -141,14 +135,15 @@ rule run_esm:
 
 rule esm_sampling:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb",
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         weights = f"{WORKDIR}/{{sample}}_esm_probs.weights"
     output:
-        pdbs = f"{WORKDIR}/esm_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb"
+        pdbs = f"{WORKDIR}/esm_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb"
     params:
         protocol = f"{INPUTDIR}/esm/sample_mutations.xml",
         resfile = f"{INPUTDIR}/esm/resfile.resfile"
+    threads: 1
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -157,7 +152,7 @@ rule esm_sampling:
         -parser:script_vars sym={input.symm} \
         -parser:script_vars weights={input.weights} \
         -parser:script_vars resfile={params.resfile} \
-        -nstruct 100 \
+        -nstruct 50 \
         -out:path:all {WORKDIR} \
         -out:prefix esm_ \
         -beta \
@@ -166,7 +161,7 @@ rule esm_sampling:
 
 rule run_pmpnn:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
         weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
     params:
@@ -182,14 +177,15 @@ rule run_pmpnn:
 
 rule pmpnn_sampling:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb",
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
     output:
-        pdbs = f"{WORKDIR}/mpnn_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb"
+        pdbs = f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb"
     params:
         protocol = f"{INPUTDIR}/pmpnn/sample_mutations.xml",
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile"
+    threads: 1
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -199,20 +195,21 @@ rule pmpnn_sampling:
         -parser:script_vars weights={input.weights} \
         -parser:script_vars resfile={params.resfile} \
         -out:path:all {WORKDIR} \
-        -out:prefix mpnn_ \
-        -nstruct 100 \
+        -out:prefix pmpnn_ \
+        -nstruct 50 \
         -beta \
         -overwrite > {WORKDIR}/pmpnn_sampling.log
         """
 
 rule interface_design:
     input:
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb",
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm"
     output:
-        pdb = f"{WORKDIR}/indes_relax_{{sample}}_INPUT_0001_INPUT_{{i}}.pdb"
+        pdb = f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb"
     params:
-        protocol = f"{INPUTDIR}/interface-design/sym_design.xml" 
+        protocol = f"{INPUTDIR}/interface-design/sym_design.xml"
+    threads: 1 
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -220,55 +217,25 @@ rule interface_design:
         -s {input.pdb} \
         -parser:script_vars sym={input.symm} \
         -beta \
-        -nstruct 100 \
+        -nstruct 50 \
         -out:path:all {WORKDIR} \
         -out:prefix indes_ \
         -overwrite > {WORKDIR}/interface_design.log
         """
 
-rule get_fasta_from_esm:
+rule get_fasta_from_pdbs:
     input:
-        pdbs = expand(f"{WORKDIR}/esm_relax_{{{{sample}}}}_INPUT_0001_INPUT_{{i:04d}}.pdb", i=range(1, 12))
+        pdbs = lambda wc: [ 
+            f"{WORKDIR}/{wc.variant}_relax_{wc.sample}_new_0001_INPUT_{i:04d}.pdb"
+            for i in range(1, 51)
+        ]
     output:
-        fastafile = f"{WORKDIR}/{{sample}}_esm.fasta"
+        fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta"
     params:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
     shell:
         """
-        python {params.script} \
-        -p {input.pdbs} \
-        -c A \
-        -o {output.fastafile}
-        """
-
-rule get_fasta_from_pmpnn:
-    input:
-        pdbs = expand(f"{WORKDIR}/mpnn_relax_{{{{sample}}}}_INPUT_0001_INPUT_{{i:04d}}.pdb", i=range(1, 12))
-    output:
-        fastafile = f"{WORKDIR}/{{sample}}_pmpnn.fasta"
-    params:
-        script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
-    shell:
-        """
-        python {params.script} \
-        -p {input.pdbs} \
-        -c A \
-        -o {output.fastafile}
-        """
-
-rule get_fasta_in_des:
-    input:
-        pdbs = expand(f"{WORKDIR}/indes_relax_{{{{sample}}}}_INPUT_0001_INPUT_{{i:04d}}.pdb", i=range(1, 12))
-    output:
-        fastafile = f"{WORKDIR}/{{sample}}_in-des.fasta"
-    params:
-        script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
-    shell:
-        """
-        python {params.script} \
-        -p {input.pdbs} \
-        -c A \
-        -o {output.fastafile}
+        python {params.script} -p {input.pdbs} -c A -o {output.fastafile}
         """
 
 rule get_wt_fasta:
@@ -286,224 +253,63 @@ rule get_wt_fasta:
         -o {output.fastafile}
         """
 
-rule plot_esm_frequencies:
+rule plot_frequencies:
     input:
-        fastafile = f"{WORKDIR}/{{sample}}_esm.fasta",
+        fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta",
         wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
     output:
-        figure = f"{WORKDIR}/{{sample}}_esm_frequency.png",
-        csv = f"{WORKDIR}/{{sample}}_esm_frequency.csv"
+        figure = f"{WORKDIR}/{{sample}}_{{variant}}_frequency.png",
+        csv = f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv"
     params:
         script = f"{INPUTDIR}/validate/plot_frequencies.py"
     shell:
         """
-        python {params.script} \
-        -i {input.fastafile} \
-        -r {input.wtfile} \
-        -o {output.figure}
+        python {params.script} -i {input.fastafile} -r {input.wtfile} -o {output.figure}
         """
 
-rule plot_mpnn_frequencies:
+rule get_mutation_list:
     input:
-        fastafile = f"{WORKDIR}/{{sample}}_pmpnn.fasta",
-        wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
+        csv = f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv"
     output:
-        figure = f"{WORKDIR}/{{sample}}_mpnn_frequency.png",
-        csv = f"{WORKDIR}/{{sample}}_mpnn_frequency.csv"
-    params:
-        script = f"{INPUTDIR}/validate/plot_frequencies.py"
-    shell:
-        """
-        python {params.script} \
-        -i {input.fastafile} \
-        -r {input.wtfile} \
-        -o {output.figure}
-        """
-
-rule plot_indes_frequencies:
-    input:
-        fastafile = f"{WORKDIR}/{{sample}}_in-des.fasta",
-        wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
-    output:
-        figure = f"{WORKDIR}/{{sample}}_indes_frequency.png",
-        csv = f"{WORKDIR}/{{sample}}_indes_frequency.csv"
-    params:
-        script = f"{INPUTDIR}/validate/plot_frequencies.py"
-    shell:
-        """
-        python {params.script} \
-        -i {input.fastafile} \
-        -r {input.wtfile} \
-        -o {output.figure}
-        """
-
-rule get_esm_mutation_list:
-    input:
-        csv = f"{WORKDIR}/{{sample}}_esm_frequency.csv"
-    output:
-        txt = f"{WORKDIR}/{{sample}}_esm_mutations.txt"
+        txt = f"{WORKDIR}/{{sample}}_{{variant}}_mutations.txt"
     params:
         script = f"{INPUTDIR}/validate/design-mutations.py"
     shell:
         """
-        python {params.script} \
-        -i {input.csv} \
-        -o {output.txt} \
+        python {params.script} -i {input.csv} -o {output.txt} \
         """
 
-rule get_pmpnn_mutation_list:
+rule run_design_or_control:
     input:
-        csv = f"{WORKDIR}/{{sample}}_mpnn_frequency.csv"
-    output:
-        txt = f"{WORKDIR}/{{sample}}_mpnn_mutations.txt"
-    params:
-        script = f"{INPUTDIR}/validate/design-mutations.py"
-    shell:
-        """
-        python {params.script} \
-        -i {input.csv} \
-        -o {output.txt} \
-        """
-
-rule get_indes_mutation_list:
-    input:
-        csv = f"{WORKDIR}/{{sample}}_indes_frequency.csv"
-    output:
-        txt = f"{WORKDIR}/{{sample}}_indes_mutations.txt"
-    params:
-        script = f"{INPUTDIR}/validate/design-mutations.py"
-    shell:
-        """
-        python {params.script} \
-        -i {input.csv} \
-        -o {output.txt} \
-        """
-
-rule design_esm:
-    input:
-        txt = f"{WORKDIR}/{{sample}}_esm_mutations.txt",
+        txt = f"{WORKDIR}/{{sample}}_{{variant}}_mutations.txt",
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
-        designdir = directory(f"{WORKDIR}/{{sample}}_design_esm/")
+        designdir = directory(f"{WORKDIR}/{{sample}}_{{mode}}_{{variant}}/"),
+        donefile = f"{WORKDIR}/{{sample}}_{{mode}}_{{variant}}/DONE.txt"
+    wildcard_constraints:
+        sample = r"[a-zA-Z0-9]+",
+        mode = r"(design|control)",
+        variant = r"[a-zA-Z0-9]+"
     params:
-        script = f"{INPUTDIR}/validate/command_multiple_design.sh",
-        xml = f"{INPUTDIR}/validate/design.v02.xml"
-        
-    shell:
-        """
-        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
-        """
-
-rule control_esm:
-    input:
-        txt = f"{WORKDIR}/{{sample}}_esm_mutations.txt",
-        symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
-    output:
-        designdir = directory(f"{WORKDIR}/{{sample}}_control_esm/")
-    params:
-        script = f"{INPUTDIR}/validate/command_multiple_control.sh",
+        script = lambda wildcards: (
+            f"{INPUTDIR}/validate/command_multiple_design.sh"
+            if wildcards.mode == "design"
+            else f"{INPUTDIR}/validate/command_multiple_control.sh"
+        ),
         xml = f"{INPUTDIR}/validate/design.v02.xml"
     shell:
         """
         bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
+        touch {output.donefile}
         """
 
-rule design_mpnn:
+rule plot_energy:
     input:
-        txt = f"{WORKDIR}/{{sample}}_mpnn_mutations.txt",
-        symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
+        directory_control = f"{WORKDIR}/{{sample}}_control_{{variant}}/",
+        directory_design = f"{WORKDIR}/{{sample}}_design_{{variant}}/"
     output:
-        designdir = directory(f"{WORKDIR}/{{sample}}_design_mpnn/")
-    params:
-        script = f"{INPUTDIR}/validate/command_multiple_design.sh",
-        xml = f"{INPUTDIR}/validate/design.v02.xml"
-        
-    shell:
-        """
-        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
-        """
-
-rule control_mpnn:
-    input:
-        txt = f"{WORKDIR}/{{sample}}_mpnn_mutations.txt",
-        symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
-    output:
-        designdir = directory(f"{WORKDIR}/{{sample}}_control_mpnn/")
-    params:
-        script = f"{INPUTDIR}/validate/command_multiple_control.sh",
-        xml = f"{INPUTDIR}/validate/design.v02.xml"
-    shell:
-        """
-        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
-        """
-
-rule design_indes:
-    input:
-        txt = f"{WORKDIR}/{{sample}}_indes_mutations.txt",
-        symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
-    output:
-        designdir = directory(f"{WORKDIR}/{{sample}}_design_indes/")
-    params:
-        script = f"{INPUTDIR}/validate/command_multiple_design.sh",
-        xml = f"{INPUTDIR}/validate/design.v02.xml"
-        
-    shell:
-        """
-        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
-        """
-
-rule control_indes:
-    input:
-        txt = f"{WORKDIR}/{{sample}}_indes_mutations.txt",
-        symfile = f"{WORKDIR}/{{sample}}_2.symm",
-        pdb = f"{WORKDIR}/relax_{{sample}}_INPUT_0001_INPUT.pdb"
-    output:
-        designdir = directory(f"{WORKDIR}/{{sample}}_control_indes/")
-    params:
-        script = f"{INPUTDIR}/validate/command_multiple_control.sh",
-        xml = f"{INPUTDIR}/validate/design.v02.xml"
-    shell:
-        """
-        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
-        """
-
-rule plot_energy_esm:
-    input:
-        directory_control = f"{WORKDIR}/{{sample}}_control_esm/", 
-        directory_design = f"{WORKDIR}/{{sample}}_design_esm/"
-    output:
-        image = f"{WORKDIR}/{{sample}}_energydifference_esm.png"
-    params:
-        script = f"{INPUTDIR}/validate/plot_energies.py"
-    shell:
-        """
-        python {params.script} -i1 {input.directory_design} -i2 {input.directory_control} -o {output.image}
-        """
-
-rule plot_energy_mpnn:
-    input:
-        directory_control = f"{WORKDIR}/{{sample}}_control_mpnn/", 
-        directory_design = f"{WORKDIR}/{{sample}}_design_mpnn/"
-    output:
-        image = f"{WORKDIR}/{{sample}}_energydifference_mpnn.png"
-    params:
-        script = f"{INPUTDIR}/validate/plot_energies.py"
-    shell:
-        """
-        python {params.script} -i1 {input.directory_design} -i2 {input.directory_control} -o {output.image}
-        """
-
-rule plot_energy_indes:
-    input:
-        directory_control = f"{WORKDIR}/{{sample}}_control_indes/", 
-        directory_design = f"{WORKDIR}/{{sample}}_design_indes/"
-    output:
-        image = f"{WORKDIR}/{{sample}}_energydifference_indes.png"
+        image = f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png"
     params:
         script = f"{INPUTDIR}/validate/plot_energies.py"
     shell:
