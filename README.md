@@ -48,19 +48,8 @@ change the `config.yaml` file with the corresponding paths
 
 ---
 
-## local execution
+## execution
 
 ```
-snakemake -j 12 # executing vaxpipe using 12 cpu cores
-```
-
-## HPC execution
-
-```
-snakemake --jobs 200 \
-  --use-conda \
-  --cluster "sbatch --job-name={rule}.{wildcards} --output=logs/{rule}.{wildcards}.out --error=logs/{rule}.{wildcards}.err --time=48:00:00 --mem=64G --cpus-per-task={threads}" \
-  --latency-wait 60 \
-  --rerun-incomplete \
-  --keep-going
+snakemake -j X # executing vaxpipe using X cpu cores
 ```
