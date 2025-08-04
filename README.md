@@ -53,3 +53,13 @@ change the `config.yaml` file with the corresponding paths
 ```
 snakemake -j X # executing vaxpipe using X cpu cores
 ```
+
+## hpc execution
+```
+snakemake --jobs 10 \
+  --cores 200 \
+  --local-cores 1 \
+  --snakefile snakefile-singulartiy \
+  --latency-wait 60 \
+  --cluster "sbatch --job-name=vaxpipe_corona --mem=32G --time=10:00:00 --error=log.err"
+```
