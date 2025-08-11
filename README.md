@@ -1,5 +1,7 @@
 # vaxpipe
 
+**under development!** needs to be tested
+
 **vaxpipe** is a Snakemake-based pipeline designed to automate structural modeling of symmetric protein complexes using the [Rosetta](https://www.rosettacommons.org/) molecular modeling suite. 
 
 It streamlines the process of generating symmetry definition files, running symmetric relaxation on input PDB structures, and prediction of possible amino acid mutations using deep learning based methods, such as ProteinMPNN and ESM and database driven approaches, such as Rosetta FastDesign, with a focus on shape complementarity of protein interfaces.
