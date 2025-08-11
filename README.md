@@ -56,10 +56,16 @@ snakemake -j X # executing vaxpipe using X cpu cores
 
 ## hpc execution
 ```
-snakemake --jobs 10 \
-  --cores 200 \
-  --local-cores 1 \
-  --snakefile snakefile-singulartiy \
-  --latency-wait 60 \
-  --cluster "sbatch --job-name=vaxpipe_corona --mem=32G --time=10:00:00 --error=log.err"
+snakemake --jobs 200 \
+ --cores 200 \
+ --local-cores 1 \
+ --snakefile snakefile-singularity \
+ --latency-wait 60 \
+ --cluster "sbatch --ntasks=1 \
+                   --cpus-per-task=1 \
+                   --job-name=vaxpipe_corona \
+                   --mem=32G \
+                   --time=48:00:00 \
+                   --error=log.err \
+                   --account=p_scads_mlvaccine"
 ```
