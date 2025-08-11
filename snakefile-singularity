@@ -298,7 +298,7 @@ rule run_design_or_control:
         xml = f"{INPUTDIR}/validate/design.v02.xml"
     shell:
         """
-        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml} && touch {output.donefile}
+        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml} {WORKDIR} {ROSETTA_DIR} && touch {output.donefile}
         """
 
 rule plot_energy:

@@ -18,7 +18,7 @@ for mut in "${mutations[@]}"; do
     mutaa=${mut#*_}
 
     # Run the command
-    singularity run -B /data/horse/ws/jari462g-ml-rosetta/vaxpipe/corona /data/horse/ws/jari462g-ml-rosetta/rosetta_ml.sif rosetta_scripts \
+    singularity run -B "$6" "$7"/rosetta_ml.sif rosetta_scripts \
         -parser:protocol "$5" \
         -parser:script_vars mutpos=${mutpos} mut_aa=${mutaa} protocol=${protocol} symfile="$3" \
         -in:file:s "$4" \
