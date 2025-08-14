@@ -12,7 +12,7 @@ WORKDIR = config["workdir"]
 SAMPLES = config["samples"]
 
 #wildcards
-variants = ["esm", "pmpnn", "indes"]
+variants = ["esm","indes","pmpnn"]
 modes = ["design", "control"]
     
 rule all:
@@ -41,14 +41,13 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=variants),
         expand(f"{WORKDIR}/{{sample}}_{{variant}}_mutations.txt", sample=SAMPLES, variant=variants),
         #design
-    output:
-        directory(expand(f"{WORKDIR}/{{sample}}_{{mode}}_{{variant}}/", sample=SAMPLES, mode=modes, variant=variants)),
         expand(f"{WORKDIR}/{{sample}}_{{mode}}_{{variant}}/DONE.txt", sample=SAMPLES, mode=modes, variant=variants),
+        expand(f"{WORKDIR}/{{sample}}_{{mode}}_{{variant}}/", sample=SAMPLES, mode=modes, variant=variants),    
         #plotting
         expand(f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=variants)
 
-ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > run_esm > run_pmpnn > esm_sampling \
-  > pmpnn_sampling > interface_design > get_wt_fasta > get_fasta_from_pdbs > plot_frequencies > get_mutation_list \
+ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > run_pmpnn > pmpnn_sampling \
+  > get_wt_fasta > get_fasta_from_pdbs > plot_frequencies > get_mutation_list \
   > run_design_or_control > plot_energy
 
 rule clean_pdb:
@@ -97,7 +96,7 @@ rule relax:
         -s {input.pdb} \
         -constrain_relax_to_start_coords \
         -beta \
-        -nstruct 200 \
+        -nstruct 1 \
         -multiple_processes_writing_to_one_directory \
         -out:prefix relax_ \
         -out:path:all {WORKDIR} \
@@ -283,33 +282,49 @@ rule run_design_or_control:
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
-        designdir = directory(f"{WORKDIR}/{{sample}}_{{mode}}_{{variant}}/"),
+        designdir = f"{WORKDIR}/{{sample}}_{{mode}}_{{variant}}",
         donefile = f"{WORKDIR}/{{sample}}_{{mode}}_{{variant}}/DONE.txt"
     wildcard_constraints:
-        sample = r"[a-zA-Z0-9]+",
+        #sample = r"[a-zA-Z0-9]+",
         mode = r"(design|control)",
         variant = r"[a-zA-Z0-9]+"
     params:
-        script = lambda wildcards: (
-            f"{INPUTDIR}/validate/command_multiple_design_singularity.sh"
-            if wildcards.mode == "design"
-            else f"{INPUTDIR}/validate/command_multiple_singularity.sh"
-        ),
         xml = f"{INPUTDIR}/validate/design.v02.xml"
     shell:
         """
-        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml} && touch {output.donefile}
+        source {input.txt}
+        mkdir -p {output.designdir}
+
+        for mut in "${{mutations[@]}}"; do
+            mutpos=${{mut%_*}}
+            mutaa=${{mut#*_}}
+                
+            singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+                -parser:protocol {params.xml} \
+                -parser:script_vars mutpos=${{mutpos}} mut_aa=${{mutaa}} protocol={wildcards.mode} symfile={input.symfile} \
+                -in:file:s {input.pdb} \
+                -corrections:beta_nov16 \
+                -out:path:all {output.designdir} \
+                -overwrite \
+                -out:suffix _{wildcards.mode}_${{mutpos}}_${{mutaa}} \
+                -nstruct 100 \
+                -beta
+        done
+        touch {output.donefile}
         """
 
 rule plot_energy:
     input:
-        directory_control = f"{WORKDIR}/{{sample}}_control_{{variant}}/",
-        directory_design = f"{WORKDIR}/{{sample}}_design_{{variant}}/"
+        control_done = f"{WORKDIR}/{{sample}}_control_{{variant}}/DONE.txt",
+        design_done = f"{WORKDIR}/{{sample}}_design_{{variant}}/DONE.txt"
     output:
-        image = f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png"
+        image = WORKDIR + "/{sample}_energydifference_{variant}.png"
     params:
-        script = f"{INPUTDIR}/validate/plot_energies.py"
+        script = INPUTDIR + "/validate/plot_energies.py"
     shell:
         """
-        python {params.script} -i1 {input.directory_design} -i2 {input.directory_control} -o {output.image}
+        python {params.script} \
+            -i1 $(dirname {input.design_done}) \
+            -i2 $(dirname {input.control_done}) \
+            -o {output.image}
         """

@@ -29,5 +29,7 @@ for index, row in mutation_csv.iterrows():
 # Method 2: Write to a file that bash can source
 mutations_file = args.output
 with open(mutations_file, 'w') as f:
-    f.write(f'mutations=({" ".join([f'"{mut}"' for mut in mutations])})\n')
+    quoted_mutations = [f'"{mut}"' for mut in mutations]
+    mutations_str = " ".join(quoted_mutations)
+    f.write(f"mutations=({mutations_str})\n")
 
