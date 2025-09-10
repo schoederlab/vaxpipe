@@ -10,11 +10,12 @@ ROSETTA_DIR = config["rosettadir"]
 INPUTDIR = config["inputdir"]
 WORKDIR = config["workdir"]
 SAMPLES = config["samples"]
+ITERATIONS = [f"{i:04d}" for i in range(1, 201)]
 
 #wildcards
-variants = ["esm","indes","pmpnn"]
+variants = ["indes","pmpnn"] #removed esm
 modes = ["design", "control"]
-    
+
 rule all:
     input:
         #preprocessing
@@ -24,16 +25,16 @@ rule all:
         expand(f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_2.symm", sample=SAMPLES),
         #esm
-        expand(f"{WORKDIR}/{{sample}}_esm_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/esm_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 201)]),
-        expand(f"{WORKDIR}/{{sample}}_esm.fasta", sample=SAMPLES),
+        #expand(f"{WORKDIR}/{{sample}}_esm_probs.weights", sample=SAMPLES),
+        #expand(f"{WORKDIR}/esm_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=ITERATIONS),
+        #expand(f"{WORKDIR}/{{sample}}_esm.fasta", sample=SAMPLES),
         #mpnn
         expand(f"{WORKDIR}/{{sample}}_mpnn_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 201)]),
-        expand(f"{WORKDIR}/{{sample}}_pmpnn.fasta", sample=SAMPLES),
+        expand(f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=ITERATIONS),
+        expand(f"{WORKDIR}/pmpnn_{{sample}}_{{i}}.log", sample=SAMPLES, i=ITERATIONS),
         #interface design
-        expand(f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=[f"{i:04d}" for i in range(1, 201)]),
-        expand(f"{WORKDIR}/{{sample}}_indes.fasta", sample=SAMPLES),
+        expand(f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb", sample=SAMPLES, i=ITERATIONS),
+        expand(f"{WORKDIR}/indes_{{sample}}_{{i}}.sc", sample=SAMPLES, i=ITERATIONS),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=variants),
@@ -46,15 +47,15 @@ rule all:
         #plotting
         expand(f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=variants)
 
-ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > run_pmpnn > pmpnn_sampling \
-  > get_wt_fasta > get_fasta_from_pdbs > plot_frequencies > get_mutation_list \
-  > run_design_or_control > plot_energy
+ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > get_wt_fasta > pmpnn_sampling > interface_design \
+  > get_fasta_from_pdbs > plot_frequencies > get_mutation_list > run_design_or_control > plot_energy
 
 rule clean_pdb:
     input:
         pdb = f"{WORKDIR}/{{sample}}.pdb"
     output:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
+    threads: 1
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif score_jd2 \
@@ -63,6 +64,7 @@ rule clean_pdb:
         """
 
 rule make_symmdef_file1:
+    localrule: True
     input:
         pdb = lambda wc: f"{WORKDIR}/{wc.sample}_clean_0001.pdb"
     output:
@@ -75,6 +77,7 @@ rule make_symmdef_file1:
         """
 
 rule rename_file:
+    localrule: True
     input:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
     output:
@@ -104,6 +107,7 @@ rule relax:
         """
 
 rule make_symmdef_file2:
+    localrule: True
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001.pdb"
     output:
@@ -180,23 +184,27 @@ rule pmpnn_sampling:
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
     output:
-        pdbs = f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb"
+        pdb = f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb",
     params:
         protocol = f"{INPUTDIR}/pmpnn/sample_mutations.xml",
-        resfile = f"{INPUTDIR}/pmpnn/resfile.resfile"
+        resfile = f"{INPUTDIR}/pmpnn/resfile.resfile",
+        rosetta_suffix = lambda wildcards: f"_{wildcards.i}"
+    log:
+        f"{WORKDIR}/pmpnn_{{sample}}_{{i}}.log"
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
-        -parser:protocol {params.protocol} \
-        -s {input.pdb} \
-        -parser:script_vars sym={input.symm} \
-        -parser:script_vars weights={input.weights} \
-        -parser:script_vars resfile={params.resfile} \
-        -out:path:all {WORKDIR} \
-        -out:prefix pmpnn_ \
-        -nstruct 200 \
-        -beta \
-        -overwrite > {WORKDIR}/pmpnn_sampling.log
+            -parser:protocol {params.protocol} \
+            -s {input.pdb} \
+            -parser:script_vars sym={input.symm} \
+            -parser:script_vars weights={input.weights} \
+            -parser:script_vars resfile={params.resfile} \
+            -out:pdb true \
+            -out:path:all {WORKDIR} \
+            -out:prefix pmpnn_ \
+            -out:suffix {params.rosetta_suffix} \
+            -beta \
+            -overwrite > {log}
         """
 
 rule interface_design:
@@ -204,28 +212,37 @@ rule interface_design:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm"
     output:
-        pdb = f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb"
+        pdb = f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb",
+        score_file = f"{WORKDIR}/indes_{{sample}}_{{i}}.sc"
     params:
-        protocol = f"{INPUTDIR}/interface-design/sym_design.xml"
+        protocol = f"{INPUTDIR}/interface-design/sym_design.xml",
+        rosetta_suffix = lambda wildcards: f"_{wildcards.i}"
+    log:
+        f"{WORKDIR}/interface_design_{{sample}}_{{i}}.log"
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
-        -parser:protocol {params.protocol} \
-        -s {input.pdb} \
-        -parser:script_vars sym={input.symm} \
-        -beta \
-        -nstruct 200 \
-        -out:path:all {WORKDIR} \
-        -out:prefix indes_ \
-        -overwrite > {WORKDIR}/interface_design.log
+            -parser:protocol {params.protocol} \
+            -s {input.pdb} \
+            -parser:script_vars sym={input.symm} \
+            -beta \
+            -out:pdb true \
+            -out:o {output.score_file} \
+            -out:path:all {WORKDIR} \
+            -out:prefix indes_ \
+            -out:suffix {params.rosetta_suffix} \
+            -overwrite > {log}
         """
 
 rule get_fasta_from_pdbs:
+    localrule: True
     input:
-        pdbs = lambda wc: [ 
-            f"{WORKDIR}/{wc.variant}_relax_{wc.sample}_new_0001_INPUT_{i:04d}.pdb"
-            for i in range(1, 201)
-        ]
+        pdbs = expand(
+            f"{WORKDIR}/{{variant}}_relax_{{sample}}_new_0001_INPUT_{{i}}.pdb",
+            i=ITERATIONS,
+            sample="{sample}",
+            variant="{variant}"
+        )
     output:
         fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta"
     params:
@@ -236,6 +253,7 @@ rule get_fasta_from_pdbs:
         """
 
 rule get_wt_fasta:
+    localrule: True
     input:
         pdb = f"{WORKDIR}/{{sample}}.pdb"
     output:
@@ -251,6 +269,7 @@ rule get_wt_fasta:
         """
 
 rule plot_frequencies:
+    localrule: True
     input:
         fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta",
         wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
@@ -265,6 +284,7 @@ rule plot_frequencies:
         """
 
 rule get_mutation_list:
+    localrule: True
     input:
         csv = f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv"
     output:
@@ -290,6 +310,7 @@ rule run_design_or_control:
         variant = r"[a-zA-Z0-9]+"
     params:
         xml = f"{INPUTDIR}/validate/design.v02.xml"
+    threads: 100
     shell:
         """
         source {input.txt}
@@ -314,6 +335,7 @@ rule run_design_or_control:
         """
 
 rule plot_energy:
+    localrule: True
     input:
         control_done = f"{WORKDIR}/{{sample}}_control_{{variant}}/DONE.txt",
         design_done = f"{WORKDIR}/{{sample}}_design_{{variant}}/DONE.txt"

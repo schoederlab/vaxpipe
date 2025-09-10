@@ -24,6 +24,11 @@ The goal of `vaxpipe` is to support **vaccine design** workflows by:
 - [Snakemake](https://snakemake.readthedocs.io/en/stable/)
 - Rosetta compiled with pytorch and tensorflow libraries (`relax`, symmetry tools)
 
+## HPC Requirements
+- `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
+- [Snakemake](https://snakemake.readthedocs.io/en/stable/)
+- Rosetta docker/singularity image: pull the docker image: `docker pull rosettacommons/rosetta:ml` 
+
 ## Repository Structure
 
 ```
@@ -59,15 +64,15 @@ snakemake -j X # executing vaxpipe using X cpu cores
 ## hpc execution
 ```
 snakemake --jobs 200 \
- --cores 200 \
+ --cores 1000 \
  --local-cores 1 \
  --snakefile snakefile-singularity \
- --latency-wait 60 \
+ --latency-wait 120 \
  --cluster "sbatch --ntasks=1 \
                    --cpus-per-task=1 \
-                   --job-name=vaxpipe_corona \
-                   --mem=32G \
-                   --time=48:00:00 \
-                   --error=log.err \
-                   --account=p_scads_mlvaccine"
+                   --job-name=vaxpipe_{rule}_{wildcards} \
+                   --mem=4G \
+                   --time=10:00:00 \
+                   --error=logs/{rule}_{wildcards}.err \
+                   --output=logs/{rule}_{wildcards}.out
 ```
