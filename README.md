@@ -74,5 +74,5 @@ snakemake --jobs 200 \
                    --mem=4G \
                    --time=10:00:00 \
                    --error=logs/{rule}_{wildcards}.err \
-                   --output=logs/{rule}_{wildcards}.out
+                   --output=logs/{rule}_{wildcards}.out"
 ```
