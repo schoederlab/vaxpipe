@@ -15,12 +15,12 @@ args = parser.parse_args()
 
 
 df1 = []
-files = glob.glob(f'{args.input1}/score_design_*?.sc')
+files = glob.glob(f'{args.input1}/*?.sc')
 for f in sorted(files):
     df1.append(pd.read_csv(f, sep=r'\s+', header=1))
 
 df2 = []
-files = glob.glob(f'{args.input2}/score_design_*?.sc')
+files = glob.glob(f'{args.input2}/*?.sc')
 for f in sorted(files):
     df2.append(pd.read_csv(f, sep=r'\s+', header=1))
 

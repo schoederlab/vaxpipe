@@ -57,18 +57,13 @@ def get_aa_seq_from_pdb(filename, chain_id:str=None, gaps:bool=False):
             # convert to list to access elements by index
             chain = chain.get_unpacked_list()
             for i, residue in enumerate(chain):
-                # get the seq id if we want to include gaps
-                # look at the last reside for comparing, subtract if needed
-                # and add gaps '-' for difference
                 if gaps:
                     try:
                         last_j = chain[i-1].get_id()[1]
                         curr_j = chain[i].get_id()[1]
                         if curr_j - last_j > 1:
                             three_code.append('-' * (curr_j - last_j - 1))
-                        
                         three_code.append(three_to_one_(residue.resname))
-                        
                     except IndexError:
                         three_code.append(three_to_one_(residue.resname))
                 else:
@@ -90,7 +85,6 @@ def _write_fasta(result_seq:list, output_file:str, linebreak:bool, suffix:str):
     with open(output_file, 'w') as fasta:
         for name, seq in result_seq:
             fasta.write(f'>{name}\n')
-            # adding linebreaks if needed
             if linebreak:
                 r = floor(len(seq)/80)
                 for j in range(r+1):
@@ -99,31 +93,34 @@ def _write_fasta(result_seq:list, output_file:str, linebreak:bool, suffix:str):
                 fasta.write(seq + '\n')
 
 
+def collect_pdb_files(paths: list, filesuffix: str = ".pdb"):
+    """Collect PDB files from a list of files or directories."""
+    files = []
+    for path in paths:
+        if os.path.isfile(path):
+            if path.endswith(filesuffix):
+                files.append(path)
+            else:
+                print(f'[WARNING] File "{path}" does not end with {filesuffix}, skipping.')
+        elif os.path.isdir(path):
+            files.extend(get_files_from_path(path=path, filesuffix=filesuffix))
+        else:
+            print(f'[ERROR] Path "{path}" is neither a file nor a directory. Skipping.')
+    return files
+
+
 def main(args):
     input_path = args.pdbpath
     output_file = args.output
     
-    # only create fasta for a single chain ?
     chain_id = args.chain if args.chain else None
-    
-    # include gaps and linebreak
     gaps = True if args.gaps else False
     linebreak = True if args.linebreak else False
-    
-    # writing in batches ?
     batch = args.batch
     
-    files = []
-
-    for path in input_path:
-        if os.path.isfile(path):
-            files.append(path)
-        elif os.path.isdir(path):
-            files.extend(get_files_from_path(path=path, filesuffix='.pdb'))
-        else:
-            print(f'[ERROR] Path "{path}" is neither a file nor a directory. Skipping.')
+    # new logic
+    files = collect_pdb_files(input_path, filesuffix=".pdb")
     
-    # exit(1)
     if PROGRESS and len(files) > 1:
         bar = tqdm
     else:
@@ -146,7 +143,6 @@ def main(args):
             suffix = 'batch_' + str(len(result_seq))
             _write_fasta(result_seq, output_file, linebreak, suffix)
     
-    # write sequences to file
     print(f'[INFO] Writing sequences to "{output_file}".')
     _write_fasta(result_seq, output_file, linebreak, suffix='')
     print('[INFO] Done.')
@@ -157,12 +153,13 @@ def main(args):
 if __name__ == '__main__':
     parser = ArgumentParser(prog='Create fasta for pdbs.', 
                             description='Create a fasta file containing the sequences of ' +
-                            'all pdb files in the given directory.\nNon standard amino acids / Ligands / HETATM ' +
+                            'all pdb files in the given directory or explicit file list.\n' +
+                            'Non standard amino acids / Ligands / HETATM ' +
                             'are replaced by "X".\n\n', 
                             formatter_class=RawTextHelpFormatter)
     
     parser.add_argument('-p', '--path', type=str, dest='pdbpath', nargs='+', required=True,
-                        help='Directory for the pdb models to create fasta file.\n' +
+                        help='List of pdb files and/or directories to create fasta file.\n' +
                         'All files with the suffix ".pdb" will be processed.\n' +
                         'Single pdbs are also allowed.')
     parser.add_argument('-c', '--chain', type=str, dest='chain', required=False,
@@ -174,20 +171,19 @@ if __name__ == '__main__':
                         help='Write fasta file with linebreak for sequences at 80 column width. ' +
                         'Default: no linebreaks')
     parser.add_argument('--batch', dest='batch', type=int, default=10000,
-                        help='Write fasta file in batches. recommended for paths with\n'
-                        + 'large number of pdbs. Batch files will be names OUTPUTNAME_(time)_batch_(N), where\n'
+                        help='Write fasta file in batches. Recommended for paths with\n'
+                        + 'large number of pdbs. Batch files will be named OUTPUTNAME_(time)_batch_(N), where\n'
                         + 'N is the number of total sequence in file. Default: 10,000')
     parser.add_argument('-o', '--out', type=str, dest='output', required=False, default=None,
                         help='Name for output file.\nDefault: Name of the path/pdbfile with suffix ".fasta".')
     args = parser.parse_args()
 
     # Create output name
-    #check_existense(args.pdbpath)
     if not args.output:
-        if os.path.isfile(args.pdbpath):
-            args.output = os.path.basename(args.pdbpath).replace('.pdb', '.fasta')
+        if len(args.pdbpath) == 1 and os.path.isfile(args.pdbpath[0]):
+            args.output = os.path.basename(args.pdbpath[0]).replace('.pdb', '.fasta')
         else:
-            p = os.path.dirname(os.path.join(args.pdbpath, ''))
+            p = os.path.dirname(os.path.join(args.pdbpath[0], ''))
             args.output = p + '.fasta' if p != '.' else os.getcwd().split('/')[-1] + '.fasta'
     
     main(args)

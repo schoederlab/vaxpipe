@@ -32,6 +32,7 @@ def count_mutations(sequences, wild_type):
 parser = ArgumentParser(prog='Plot Frequencies for evaluation of proposed mutations')
 parser.add_argument('-i', '--input', help='fastafile', type=str)
 parser.add_argument('-r', '--ref', type=str, help='path to the wildtype fasta file')
+parser.add_argument('-m', '--mutations', type=int, default=20, help='number of mutations to plot, default: 20')
 parser.add_argument('-o', '--output', type=str, default='output.png', help='filename for the resulting output. default: output.*')
 args = parser.parse_args()
 
@@ -52,7 +53,7 @@ for position, mutations in mutation_counts.items():
 mutation_list.sort(key=lambda x: x[3], reverse=True)
 
 # Create DataFrame from top 20 mutations
-top_mutations = mutation_list[:20]
+top_mutations = mutation_list[:args.mutations - 1]
 df = pd.DataFrame(top_mutations, columns=["Position", "WildType", "Mutation", "Count"])
 
 # Save to CSV
@@ -69,6 +70,6 @@ plt.bar(labels, scores, color='skyblue')
 plt.xlabel("Mutation")
 plt.ylabel("Count / -")
 plt.xticks(rotation=90)
-plt.xlim(-0.5,20.5)
+plt.xlim(-0.5, args.mutations-1+0.5)
 plt.tight_layout()
 plt.savefig(args.output, dpi=600)
