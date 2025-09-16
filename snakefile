@@ -1,3 +1,4 @@
+#!/bin/python
 # Snakefile
 
 import os
@@ -299,7 +300,7 @@ rule run_design_or_control:
         xml = f"{INPUTDIR}/validate/design.v02.xml"
     shell:
         """
-        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml}
+        bash {params.script} {input.txt} {output.designdir} {input.symfile} {input.pdb} {params.xml} {ROSETTA_DIR}
         touch {output.donefile}
         """
 

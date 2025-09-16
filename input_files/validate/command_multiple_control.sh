@@ -18,7 +18,7 @@ for mut in "${mutations[@]}"; do
     mutaa=${mut#*_}
 
     # Run the command
-    $ROSETTA/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+    "$6"/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
         -parser:protocol "$5" \
         -parser:script_vars mutpos=${mutpos} mut_aa=${mutaa} protocol=${protocol} symfile="$3" \
         -in:file:s "$4" \
