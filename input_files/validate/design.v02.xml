@@ -1,0 +1,114 @@
+<ROSETTASCRIPTS>
+    <SCOREFXNS>
+		<!-- useful for design steps. From Vikram Mulligan. -->
+        <!-- symmetric="true" no longer needed -->
+        <!-- is this realy useful? preliminary tests say no ... -->
+		<ScoreFunction name="softdesign" weights="beta_nov16_soft" >
+			<Reweight scoretype="aspartimide_penalty" weight="1.0" />
+            <Reweight scoretype="atom_pair_constraint" weight="1.0" />
+            <Reweight scoretype="angle_constraint" weight="1.0" />
+            <Reweight scoretype="dihedral_constraint" weight="1.0" />
+            <Reweight scoretype="aa_composition" weight="1.0" />
+		</ScoreFunction>
+
+		<!-- final output scorefunction -->
+		<ScoreFunction name="scfxn" weights="beta_nov16" />
+    </SCOREFXNS>
+	
+	<RESIDUE_SELECTORS>
+		<!-- selecting the position we want to mutate, we only perform single mutations -->
+		<Index name="mutpos" resnums="%%mutpos%%" />
+
+		<!-- define the environment around the design psoition -->
+		<Neighborhood name="neighbor_mutpos" selector="mutpos" distance="10.0" />
+		<!-- add residues one up/downstream from neighbors -->
+		<PrimarySequenceNeighborhood name="bubble_mutpos" selector="neighbor_mutpos" lower="1" upper="1" />
+		<Logic name="around_mutpos" selector="bubble_mutpos and (not mutpos)" />
+
+		<!-- all other residues -->
+		<Logic name="not_mutpos_or_neighbor" selector="not neighbor_mutpos" />
+	</RESIDUE_SELECTORS>
+	
+	<TASKOPERATIONS>
+		<InitializeFromCommandline name="ifcl"/>
+		<IncludeCurrent name="keep_curr" />		
+		<ExtraRotamersGeneric name="extrarot" ex1="1" ex2="1" ex3="0" ex4="0" extrachi_cutoff="10" />
+		
+        <!-- repacking of full bubble -->
+		<OperateOnResidueSubset name="repack_bubble" selector="bubble_mutpos">
+			<RestrictToRepackingRLT/>
+		</OperateOnResidueSubset>
+		<!-- allow only repacking of no designed residues -->
+		<OperateOnResidueSubset name="repackonly" selector="around_mutpos">
+			<RestrictToRepackingRLT/>
+		</OperateOnResidueSubset>
+		<!-- no repacking or design for residues far from the position of interest -->
+		<OperateOnResidueSubset name="norepack" selector="not_mutpos_or_neighbor">
+			<PreventRepackingRLT/>
+		</OperateOnResidueSubset>
+	</TASKOPERATIONS>
+	
+	<SIMPLE_METRICS>
+		<!-- onyl for visualisation purposes, use pymol and selection-->
+		<SelectedResiduesPyMOLMetric name="pm_mutpos" residue_selector="mutpos" custom_type="mutpos" />
+		<SelectedResiduesPyMOLMetric name="pm_bubble" residue_selector="around_mutpos" custom_type="around_mutpos" />
+		<SelectedResiduesPyMOLMetric name="pm_other" residue_selector="not_mutpos_or_neighbor" custom_type="not_mutpos_or_neighbor" />
+	</SIMPLE_METRICS>
+
+    <FILTERS>
+        <Ddg name="ddg" scorefxn="scfxn" repeats="5" repack_bound="false" repack_unbound="true" threshold="0.0" 
+            jump="1" confidence="0.0" translate_by="500" dump_pdbs="false" />
+    </FILTERS>
+
+    <MOVERS>
+		<!-- visualisation -->
+		<RunSimpleMetrics name="run_pm_metric" metrics="pm_mutpos,pm_bubble,pm_other" prefix="m2_" />
+
+        <!-- preserve atom coords false, so that only backbone atoms stay the same -->
+        <MutateResidue name="mutate" residue_selector="mutpos" new_res="%%mut_aa%%" preserve_atom_coords="false" />
+        
+        <!-- simple design, mutating, repacking, minimizing -->
+        <!-- syms setup, sym repacking, symmin - no bb minimization, backrup -->
+        <SetupForSymmetry name="setup_symm" definition="%%symfile%%" />
+        <SymPackRotamersMover name="symrepack" scorefxn="scfxn" task_operations="ifcl,keep_curr,extrarot,repack_bubble,norepack" />
+        <SymMinMover name="symminimize" scorefxn="scfxn" tolerance="0.01" bb="0" chi="1" jump="ALL" />
+
+        <BackrubProtocol name="backrub" mc_kt="1.2" ntrials="100" pivot_residue_selector="bubble_mutpos" 
+    	    task_operations="ifcl,keep_curr,extrarot,repack_bubble,norepack" />
+
+        <!-- symmetric minimzing of pose, alternating round -->
+        <ParsedProtocol name="minimize_cycle">
+            <Add mover="backrub" />
+            <Add mover="symrepack" />
+            <Add mover="symminimize" />
+            <Add mover="backrub" />
+            <Add mover="symrepack" />
+            <Add mover="symminimize" />
+            <Add mover="backrub" />
+            <Add mover="symrepack" />
+            <Add mover="symminimize" />
+        </ParsedProtocol>
+
+        <!-- find minima with generic monte carlo, preapply=false see docu --> 
+        <GenericMonteCarlo name="genericMC" mover_name="minimize_cycle" scorefxn_name="scfxn" temperature="10.0" 
+            trials="5" preapply="false" saved_accept_file_name="" />
+
+        <!-- Predefine protocols to use control and design with command line-->
+        <ParsedProtocol name="design" >
+            <Add mover="mutate" />
+            <Add mover="setup_symm" />
+            <Add mover="genericMC" />
+        </ParsedProtocol>
+
+        <ParsedProtocol name="control" >
+            <Add mover="setup_symm" />
+            <Add mover="genericMC" />
+        </ParsedProtocol>
+    </MOVERS>
+
+    <PROTOCOLS>
+        <Add mover="%%protocol%%" />
+        <Add filter="ddg" />
+    </PROTOCOLS>
+    <OUTPUT scorefxn="scfxn" />
+</ROSETTASCRIPTS>

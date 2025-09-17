@@ -1,0 +1,19 @@
+<ROSETTASCRIPTS>
+    <RESIDUE_SELECTORS>
+        <Chain name="res" chains="A"/>
+    </RESIDUE_SELECTORS>
+    <SIMPLE_METRICS>
+        # Inference
+        <PerResidueEsmProbabilitiesMetric name="esm" residue_selector="res" write_pssm="esm.pssm" model="esm2_t33_650M_UR50D" multirun="false"/>
+    </SIMPLE_METRICS>
+    <FILTERS>
+    </FILTERS>
+    <MOVERS>
+        <RunSimpleMetrics name="inference" metrics="esm"/>
+        <SaveProbabilitiesMetricMover name="save" metric="esm" filename="%%weights%%" filetype="weights" use_cached_data="true"/>
+    </MOVERS>
+    <PROTOCOLS>
+        <Add mover_name="inference"/>
+        <Add mover_name="save"/>
+    </PROTOCOLS>
+</ROSETTASCRIPTS>
