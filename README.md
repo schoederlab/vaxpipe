@@ -23,17 +23,19 @@ The goal of `vaxpipe` is to support **vaccine design** workflows by automating t
 - **Output Files**: Intermediate and final output files will be generated in a structured directory format, as defined in the `snakefile`. If the pipeline run successfully, several .png files will be present in the output directory, which represent both frequency and energy evaluation of tested mutations.
 - **Resource Management**: For HPC execution, users are responsible for configuring SLURM or other cluster submission parameters within the `snakefile-hpc` to match their system's requirements and resource availability.
 
-## Requirements
+## Local Execution Requirements
 
 - `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
 - [Snakemake](https://snakemake.readthedocs.io/en/stable/)
 - Rosetta compiled with pytorch and tensorflow libraries. A detailed information on how to compile Rosetta with pytorch and tensorflow support can be found [here](https://docs.rosettacommons.org/docs/latest/build_documentation/Building-Rosetta-with-TensorFlow-and-Torch)
+- ESM model (will be downloaded automatically)
 
 ## HPC Requirements
 - `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
 - [Snakemake](https://snakemake.readthedocs.io/en/stable/)
 - **singularity**
-- We provide a snakemake file that relies on a Rosetta docker/singularity image. The image is available on Docker Hub and can be pulled using singularity: `singularity pull docker://rosettacommons/rosetta:ml-387` (used for cluster execution). 
+- We provide a snakemake file that relies on a Rosetta docker/singularity image. The image is available on Docker Hub and can be pulled using singularity: `singularity pull docker://rosettacommons/rosetta:ml-387` (used for cluster execution).
+- ESM model [download](https://git.iwe-lab.de/moritzertelt/ML_graphs/-/tree/main/tensorflow_graphs/ESM/esm2_t33_650M_UR50D). Currently, the pipeline just accepts this ESM model. **The model needs to be downloaded and copied into the repository path.**
 
 ## Repository Structure
 
