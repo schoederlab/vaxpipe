@@ -10,12 +10,12 @@ ROSETTA_DIR = config["rosettadir"]
 INPUTDIR = config["inputdir"]
 WORKDIR = config["workdir"]
 SAMPLES = config["samples"]
-ITERATIONS = config["iterations"]
-MUTATIONS = config["mutations"]
 
 #wildcards
 variants = ["esm","indes","pmpnn"]
 modes = ["design", "control"]
+ITERATIONS = [f"{i:04d}" for i in range(1, 201)]
+MUTATIONS = [f"{m}" for m in range(1, 21)]
 wildcard_constraints:
     i = r"\d{4}"
 
@@ -58,6 +58,8 @@ rule clean_pdb:
         pdb = f"{WORKDIR}/{{sample}}.pdb"
     output:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
+    resources:
+        mem_mb=4000
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif score_jd2 \
@@ -95,6 +97,8 @@ rule relax:
         symm = f"{WORKDIR}/{{sample}}.symm"
     output:
         relaxed_pdb = f"{WORKDIR}/relax_{{sample}}_new_0001.pdb"
+    resources:
+        mem_mb=4000
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif relax \
@@ -138,6 +142,7 @@ rule run_esm:
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
         -beta \
+        -overwrite
         """
 
 rule esm_sampling:
@@ -150,6 +155,8 @@ rule esm_sampling:
     params:
         protocol = f"{INPUTDIR}/esm/sample_mutations.xml",
         resfile = f"{INPUTDIR}/esm/resfile.resfile",
+    resources:
+        mem_mb=4000
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -173,6 +180,8 @@ rule run_pmpnn:
         weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
     params:
         protocol = f"{INPUTDIR}/pmpnn/run_mpnn_and_save.xml"
+    resources:
+        mem_mb=4000
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -180,6 +189,7 @@ rule run_pmpnn:
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
         -beta \
+        -overwrite
         """
 
 rule pmpnn_sampling:
@@ -192,6 +202,8 @@ rule pmpnn_sampling:
     params:
         protocol = f"{INPUTDIR}/pmpnn/sample_mutations.xml",
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile",
+    resources:
+        mem_mb=4000
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -216,6 +228,8 @@ rule interface_design:
         pdb = f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb"
     params:
         protocol = f"{INPUTDIR}/interface-design/sym_design.xml",
+    resources:
+        mem_mb=4000
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -302,6 +316,8 @@ rule run_design_or_control:
     params:
         xml = f"{INPUTDIR}/validate/design.v02.xml",
         outdir = f"{WORKDIR}/{{sample}}_{{variant}}/{{mode}}"
+    resources:
+        mem_mb=4000
     shell:
         """
         MUTATION_LINE=$(cat {input.txt})

@@ -1,11 +1,10 @@
-# path to ROSETTA or ROSETTA singularity image
-rosettadir: /PATH/TO/YOUR/ROSETTA
+# path to ROSETTA
+rosettadir: /data/horse/ws/jari462g-ml-rosetta
 
-# Path to directories
-workdir: /PATH/TO/YOUR/WORKING/DIRECTORY
-inputdir: PATH/TO/GITHUB/REPO/input_files
+# Path to working directory
+workdir: /data/horse/ws/jari462g-ml-rosetta/vaxpipe/corona
 
-# List of samples, number of structures and mutations
-samples: SAMPLE_NAME
-iterations = [f"{i:04d}" for i in range(1, 201)]
-mutations = [f"{m}" for m in range(1, 21)]
+inputdir: /data/horse/ws/jari462g-ml-rosetta/vaxpipe/input_files
+
+# List of samples
+samples: pdcov
