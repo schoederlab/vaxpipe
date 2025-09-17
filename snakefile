@@ -15,7 +15,7 @@ ITERATIONS = config["iterations"]
 MUTATIONS = config["mutations"]
 
 #wildcards
-variants = ["indes","pmpnn"]
+variants = ["indes","pmpnn", "esm"]
 modes = ["design", "control"]
 wildcard_constraints:
     i = r"\d{4}"
