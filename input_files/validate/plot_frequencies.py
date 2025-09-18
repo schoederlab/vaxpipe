@@ -20,6 +20,8 @@ def count_mutations(sequences, wild_type):
     position_counts = {}
     for seq in sequences:
         for i, (wt_residue, mut_residue) in enumerate(zip(wild_type, seq)):
+            if i == 0:
+                continue
             if wt_residue != mut_residue:
                 if i not in position_counts:
                     position_counts[i] = {}
