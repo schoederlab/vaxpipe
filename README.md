@@ -4,17 +4,8 @@
 
 It streamlines the process of the prediction of possible amino acid mutations using deep learning based methods, such as ProteinMPNN and ESM and database driven approaches, such as Rosetta FastDesign, with a focus on shape complementarity of protein interfaces.
 
----
 
-## Purpose
-
-The goal of `vaxpipe` is to support **vaccine design** workflows by automating the structural modeling of symmetric protein complexes using the Rosetta molecular modeling suite. It focuses on streamlining the process of generating symmetry definition files, performing symmetric relaxation, predicting amino acid mutations using deep learning (ProteinMPNN, ESM), and designing novel sequences with an emphasis on shape complementarity at protein interfaces. This pipeline ensures reproducibility and modularity through Snakemake.
-
-- Generating symmetry definitions using Rosetta's `make_symmdef_file.pl` to speed up the calculations
-- predicting amino acid probabilities using deep learning based methods (P-MPNN, ESM) followed by designing novel sequences which are further evaluated using Rosetta
-- Ensuring reproducibility and modularity using [Snakemake](https://snakemake.readthedocs.io/). Snakemake is a workflow management system that enables the creation of reproducible and scalable data analysis pipelines. It allows to define rules for how data is processed, automatically handling dependencies and parallelization.
-
-## Operational Guidelines
+### Operational Guidelines
 
 - **Input PDB Structure**: The pipeline expects an input PDB file (e.g., `test/3ft7.pdb`) which represents a symmetric protein complex.
 - **Rosetta Installation**: A functional Rosetta installation compiled with PyTorch and TensorFlow libraries is required for the deep learning-based predictions. For cluster usage, a singularity image can be downloaded from Docker Hub (see details below). Ensure that the `ROSETTA` path is correctly specified in the `config.yaml`.
@@ -23,21 +14,21 @@ The goal of `vaxpipe` is to support **vaccine design** workflows by automating t
 - **Output Files**: Intermediate and final output files will be generated in a structured directory format, as defined in the `snakefile`. If the pipeline run successfully, several .png files will be present in the output directory, which represent both frequency and energy evaluation of tested mutations.
 - **Resource Management**: For HPC execution, users are responsible for configuring SLURM or other cluster submission parameters within the `snakefile-hpc` to match their system's requirements and resource availability.
 
-## Local Execution Requirements
+### Local Execution Requirements
 
 - `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
 - [Snakemake](https://snakemake.readthedocs.io/en/stable/)
 - Rosetta compiled with pytorch and tensorflow libraries. A detailed information on how to compile Rosetta with pytorch and tensorflow support can be found [here](https://docs.rosettacommons.org/docs/latest/build_documentation/Building-Rosetta-with-TensorFlow-and-Torch)
 - ESM model (will be downloaded automatically)
 
-## HPC Requirements
+### HPC Requirements
 - `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
 - [Snakemake](https://snakemake.readthedocs.io/en/stable/)
 - **singularity**
 - We provide a snakemake file that relies on a Rosetta docker/singularity image. The image is available on Docker Hub and can be pulled using singularity: `singularity pull docker://rosettacommons/rosetta:ml-387` (used for cluster execution).
 - ESM model [download](https://git.iwe-lab.de/moritzertelt/ML_graphs/-/tree/main/tensorflow_graphs/ESM/esm2_t33_650M_UR50D). Currently, the pipeline just accepts this ESM model. **The model needs to be downloaded and copied into the repository path.**
 
-## Repository Structure
+### Repository Structure
 
 ```
 vaxpipe/
@@ -50,7 +41,7 @@ vaxpipe/
 ```
 ---
 
-## Installation
+### Installation
 
 generate snakemake conda environment
 
@@ -64,17 +55,17 @@ pip install biopython tqdm matplotlib
 
 ---
 
-## Understanding and Executing the Pipeline with Snakemake
+### Understanding and Executing the Pipeline with Snakemake
 
 `vaxpipe` is built with Snakemake, a powerful workflow management system that helps you create reproducible and scalable data analysis pipelines. Here's a brief guide to get you started:
 
-### Core Concepts:
+#### Core Concepts:
 - **Rules**: Define how output files are generated from input files. Each rule specifies a command to be run.
 - **Wildcards**: Allow rules to be applied to many files (e.g., `data/{sample}.txt` where `{sample}` is a wildcard).
 - **DAG (Directed Acyclic Graph)**: Snakemake automatically builds a DAG of jobs, ensuring that all dependencies are met before a rule is executed.
 - **Execution**: Snakemake determines which rules need to be run based on the desired output files and the current state of your input files.
 
-### Essential Commands:
+#### Essential Commands:
 
 1.  **Dry Run**: Always start with a dry run to see what Snakemake plans to do without actually executing any commands:
     ```bash
@@ -92,13 +83,13 @@ pip install biopython tqdm matplotlib
     ```
 For more in-depth information, please refer to the [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/).
 
-## execution
+### execution
 
 ```
 snakemake -j X # executing vaxpipe using X cpu cores
 ```
 
-## hpc execution
+### hpc execution
 
 For High-Performance Computing (HPC) environments, `vaxpipe` leverages Snakemake's cluster submission capabilities, typically via workload managers like SLURM. The `snakefile-hpc` is specifically optimized for this purpose.
 
