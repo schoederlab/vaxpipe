@@ -104,7 +104,7 @@ snakemake --jobs 500 \
  --cluster "sbatch --ntasks=1 \
                    --cpus-per-task=1 \
                    --job-name=vaxpipe_{rule}_{wildcards} \
-                   --mem=4G \
+                   --mem={resources.mem_mb} \
                    --time=10:00:00 \
                    --error=logs/{rule}_{wildcards}.err \
                    --output=logs/{rule}_{wildcards}.out"
@@ -121,7 +121,7 @@ snakemake --jobs 500 \
     *   `--ntasks=1`: Requests 1 task per job.
     *   `--cpus-per-task=1`: Requests 1 CPU core per task. Thus, each job will run on a single CPU core.
     *   `--job-name=vaxpipe_{rule}_{wildcards}`: Assigns a dynamic name to each job, incorporating the Snakemake rule name and any wildcards, which helps in tracking jobs on the cluster.
-    *   `--mem=4G`: Requests 4 Gigabytes of memory for each job.
+    *   `--mem={resources.mem_mb}`: Requests a specific amount of memory for each job. The required memory per each rule is set in the snakemake file. The values were benchmarked for a trimeric protein (900 aa) and might be changed dependent on the use case.
     *   `--time=10:00:00`: Sets a time limit of 10 hours for each job's execution.
     *   `--error=logs/{rule}_{wildcards}.err`: Redirects standard error output to a specific error log file, dynamically named based on the rule and wildcards.
     *   `--output=logs/{rule}_{wildcards}.out`: Redirects standard output to a specific output log file, also dynamically named.
