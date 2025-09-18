@@ -17,6 +17,8 @@ MUTATIONS = config["mutations"]
 #wildcards
 variants = ["indes","pmpnn", "esm"]
 modes = ["design", "control"]
+ITERATIONS = [f"{i:04d}" for i in range(1, 201)]
+MUTATIONS = [f"{m}" for m in range(1, 21)]
 wildcard_constraints:
     i = r"\d{4}"
 
@@ -319,7 +321,7 @@ rule run_design_or_control:
             -corrections:beta_nov16 \
             -out:file:scorefile {output.sc} \
             -overwrite \
-            -nstruct 20 \
+            -nstruct 50 \
             -beta
         """
 
