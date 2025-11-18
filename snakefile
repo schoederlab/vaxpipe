@@ -48,7 +48,7 @@ rule all:
         #plotting
         expand(f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=variants)
 
-ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > get_wt_fasta > run_pmpnn > pmpnn_sampling > interface_design \
+ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > get_wt_fasta > run_esm > run_pmpnn > esm_sampling > pmpnn_sampling > interface_design \
   > get_fasta_from_pdbs > plot_frequencies > get_mutation_list > run_design_or_control > plot_energy
 
 rule clean_pdb:
