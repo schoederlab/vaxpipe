@@ -83,17 +83,34 @@ pip install biopython tqdm matplotlib
     ```
 For more in-depth information, please refer to the [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/).
 
-### execution
+### Execution
 
 ```
 snakemake --cores X --software-deployment-method conda  # executing vaxpipe using X CPU cores
 ```
 
-### hpc execution
+### HPC execution
 
 For High-Performance Computing (HPC) environments, `vaxpipe` leverages Snakemake's cluster submission capabilities, typically via workload managers like SLURM. The `snakefile-hpc` is specifically optimized for this purpose.
 
 Here's a breakdown of the command-line options:
+
+#### For Snakemake version>8
+```
+snakemake --executor slurm \
+  --jobs 500 \
+  --snakefile snakefile-hpc \
+  --latency-wait 120 \
+  --default-resources \
+  --jobname vaxpipe_{rule}_{wildcards} \
+  --slurm-logdir logs \
+  --set-resources "*:slurm_partition=default" \
+  --set-resources "*:slurm_time=10:00:00" \
+  --set-resources "*:slurm_output=logs/{rule}_{wildcards}.out" \
+  --set-resources "*:slurm_error=logs/{rule}_{wildcards}.err" \
+```
+
+#### For Snakemake version<8
 
 ```
 snakemake --jobs 500 \
