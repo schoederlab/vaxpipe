@@ -4,8 +4,6 @@
 import os
 import yaml
 
-min_version("9.0")
-
 configfile: "config.yaml"
 
 # Configuration
