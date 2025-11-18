@@ -1,3 +1,5 @@
+**Important note: this branch was tested with snakemake version 7.32.4**
+
 # vaxpipe
 
 **vaxpipe** is a Snakemake-based pipeline designed to automate structural modeling of symmetric protein complexes using the [Rosetta](https://www.rosettacommons.org/) molecular modeling suite. 
