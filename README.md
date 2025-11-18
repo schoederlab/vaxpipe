@@ -48,6 +48,7 @@ generate snakemake conda environment
 ```
 conda create -c conda-forge -c bioconda -n snakemake snakemake
 conda activate snakemake
+pip install snakemake-executor-plugin-slurm
 pip install biopython tqdm matplotlib
 ```
 
@@ -67,9 +68,9 @@ pip install biopython tqdm matplotlib
 
 #### Essential Commands:
 
-1.  **Dry Run**: Always start with a dry run to see what Snakemake plans to do without actually executing any commands:
+1.  **Dry Run**: Always start with a dry run to see what Snakemake plans to do without actually executing any commands (locally):
     ```bash
-    snakemake --dry-run
+    snakemake --dry-run 
     # or a shorter version
     snakemake -n
     ```
@@ -79,11 +80,11 @@ pip install biopython tqdm matplotlib
     ```
 3.  **Execute on HPC Cluster**: For cluster execution, use the HPC-optimized snakefile together with Snakemake’s executor interface (replacement for the deprecated `--cluster` flag). See the `hpc execution` section below for a detailed SLURM example:
     ```bash
-    snakemake --snakefile snakefile-hpc --executor slurm --executor-arg "sbatch ..."
+    snakemake --snakefile snakefile-hpc --cluster "sbatch ..."
     ```
 For more in-depth information, please refer to the [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/).
 
-### Execution
+## execution
 
 ```
 snakemake --cores X --software-deployment-method conda  # executing vaxpipe using X CPU cores
@@ -94,23 +95,6 @@ snakemake --cores X --software-deployment-method conda  # executing vaxpipe usin
 For High-Performance Computing (HPC) environments, `vaxpipe` leverages Snakemake's cluster submission capabilities, typically via workload managers like SLURM. The `snakefile-hpc` is specifically optimized for this purpose.
 
 Here's a breakdown of the command-line options:
-
-#### For Snakemake version>8
-```
-snakemake --executor slurm \
-  --jobs 500 \
-  --snakefile snakefile-hpc \
-  --latency-wait 120 \
-  --default-resources \
-  --jobname vaxpipe_{rule}_{wildcards} \
-  --slurm-logdir logs \
-  --set-resources "*:slurm_partition=default" \
-  --set-resources "*:slurm_time=10:00:00" \
-  --set-resources "*:slurm_output=logs/{rule}_{wildcards}.out" \
-  --set-resources "*:slurm_error=logs/{rule}_{wildcards}.err" \
-```
-
-#### For Snakemake version<8
 
 ```
 snakemake --jobs 500 \
@@ -136,12 +120,9 @@ snakemake --jobs 500 \
 -   `--local-cores 1`: This reserves 1 CPU core for local tasks (e.g., Snakemake's internal processing or very small, quick jobs that are not submitted to the cluster). This ensures Snakemake itself has sufficient resources to manage the workflow.
 -   `--snakefile snakefile-hpc`: This explicitly tells Snakemake to use the `snakefile-hpc` workflow definition, which is tailored for cluster execution and may include specific resource requests or directives for job submission.
 -   `--latency-wait 120`: This sets a grace period (in seconds) that Snakemake waits for output files to appear after a job completes. This is particularly useful in networked file systems where there might be a delay in file synchronization, preventing Snakemake from prematurely marking a job as failed if its output isn't immediately visible.
--   `--software-deployment-method apptainer`: Replaces the deprecated `--use-singularity` flag and instructs Snakemake to execute jobs through Apptainer/Singularity containers on the cluster nodes.
--   `--executor slurm` / `--executor-arg "sbatch ..."`: The Snakemake 9 executor interface replaces the former `--cluster` flag. `--executor slurm` selects the SLURM backend, and `--executor-arg` forwards the desired `sbatch` submission template for each job. Adjust the `sbatch` arguments to match your site’s policies:
     *   `--ntasks=1`: Requests 1 task per job.
     *   `--cpus-per-task=1`: Requests 1 CPU core per task. Thus, each job will run on a single CPU core.
     *   `--job-name=vaxpipe_{rule}_{wildcards}`: Assigns a dynamic name to each job, incorporating the Snakemake rule name and any wildcards, which helps in tracking jobs on the cluster.
-    *   `--mem={resources.mem_mb}`: Requests a specific amount of memory for each job. The required memory per each rule is set in the snakemake file. The values were benchmarked for a trimeric protein (900 aa) and might be changed dependent on the use case.
     *   `--time=10:00:00`: Sets a time limit of 10 hours for each job's execution.
     *   `--error=logs/{rule}_{wildcards}.err`: Redirects standard error output to a specific error log file, dynamically named based on the rule and wildcards.
     *   `--output=logs/{rule}_{wildcards}.out`: Redirects standard output to a specific output log file, also dynamically named.
