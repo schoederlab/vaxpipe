@@ -26,13 +26,13 @@ The goal of `vaxpipe` is to support **vaccine design** workflows by automating t
 ## Local Execution Requirements
 
 - `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
-- [Snakemake](https://snakemake.readthedocs.io/en/stable/)
+- [Snakemake ≥ 9.0](https://snakemake.readthedocs.io/en/v9.3.0/)
 - Rosetta compiled with pytorch and tensorflow libraries. A detailed information on how to compile Rosetta with pytorch and tensorflow support can be found [here](https://docs.rosettacommons.org/docs/latest/build_documentation/Building-Rosetta-with-TensorFlow-and-Torch)
 - ESM model (will be downloaded automatically)
 
 ## HPC Requirements
 - `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
-- [Snakemake](https://snakemake.readthedocs.io/en/stable/)
+- Snakemake ≥ 9.0
 - **singularity**
 - We provide a snakemake file that relies on a Rosetta docker/singularity image. The image is available on Docker Hub and can be pulled using singularity: `singularity pull docker://rosettacommons/rosetta:ml-387` (used for cluster execution).
 - ESM model [download](https://git.iwe-lab.de/moritzertelt/ML_graphs/-/tree/main/tensorflow_graphs/ESM/esm2_t33_650M_UR50D). Currently, the pipeline just accepts this ESM model. **The model needs to be downloaded and copied into the repository path.**
@@ -82,20 +82,20 @@ pip install biopython tqdm matplotlib
     # or a shorter version
     snakemake -n
     ```
-2.  **Execute Locally**: Run the pipeline on your local machine, utilizing `X` CPU cores:
+2.  **Execute Locally**: Run the pipeline on your local machine, utilizing `X` CPU cores and opting into Conda-based software deployment (replacement for the deprecated `--use-conda` flag):
     ```bash
-    snakemake -j X
+    snakemake --cores X --software-deployment-method conda
     ```
-3.  **Execute on HPC Cluster**: For cluster execution, the `--snakefile snakefile-hpc` option is used to specify the HPC-optimized workflow. Cluster parameters are passed via the `--cluster` flag (refer to the `hpc execution` section below for a detailed example):
+3.  **Execute on HPC Cluster**: For cluster execution, use the HPC-optimized snakefile together with Snakemake’s executor interface (replacement for the deprecated `--cluster` flag). See the `hpc execution` section below for a detailed SLURM example:
     ```bash
-    snakemake --snakefile snakefile-hpc --cluster "sbatch ..."
+    snakemake --snakefile snakefile-hpc --executor slurm --executor-arg "sbatch ..."
     ```
 For more in-depth information, please refer to the [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/).
 
 ## execution
 
 ```
-snakemake -j X # executing vaxpipe using X cpu cores
+snakemake --cores X --software-deployment-method conda  # executing vaxpipe using X CPU cores
 ```
 
 ## hpc execution
@@ -110,13 +110,15 @@ snakemake --jobs 500 \
  --local-cores 1 \
  --snakefile snakefile-hpc \
  --latency-wait 120 \
- --cluster "sbatch --ntasks=1 \
-                   --cpus-per-task=1 \
-                   --job-name=vaxpipe_{rule}_{wildcards} \
-                   --mem=4G \
-                   --time=10:00:00 \
-                   --error=logs/{rule}_{wildcards}.err \
-                   --output=logs/{rule}_{wildcards}.out"
+ --software-deployment-method apptainer \
+ --executor slurm \
+ --executor-arg "sbatch --ntasks=1 \
+                         --cpus-per-task=1 \
+                         --job-name=vaxpipe_{rule}_{wildcards} \
+                         --mem=4G \
+                         --time=10:00:00 \
+                         --error=logs/{rule}_{wildcards}.err \
+                         --output=logs/{rule}_{wildcards}.out"
 ```
 
 **Explanation of Options:**
@@ -126,7 +128,8 @@ snakemake --jobs 500 \
 -   `--local-cores 1`: This reserves 1 CPU core for local tasks (e.g., Snakemake's internal processing or very small, quick jobs that are not submitted to the cluster). This ensures Snakemake itself has sufficient resources to manage the workflow.
 -   `--snakefile snakefile-hpc`: This explicitly tells Snakemake to use the `snakefile-hpc` workflow definition, which is tailored for cluster execution and may include specific resource requests or directives for job submission.
 -   `--latency-wait 120`: This sets a grace period (in seconds) that Snakemake waits for output files to appear after a job completes. This is particularly useful in networked file systems where there might be a delay in file synchronization, preventing Snakemake from prematurely marking a job as failed if its output isn't immediately visible.
--   `--cluster "sbatch ..."`: This is the most critical option for HPC execution. It passes the specified `sbatch` command directly to the cluster's workload manager (SLURM in this example) for each job submission. The parameters within the quotes define the resources and properties of each individual job:
+-   `--software-deployment-method apptainer`: Replaces the deprecated `--use-singularity` flag and instructs Snakemake to execute jobs through Apptainer/Singularity containers on the cluster nodes.
+-   `--executor slurm` / `--executor-arg "sbatch ..."`: The Snakemake 9 executor interface replaces the former `--cluster` flag. `--executor slurm` selects the SLURM backend, and `--executor-arg` forwards the desired `sbatch` submission template for each job. Adjust the `sbatch` arguments to match your site’s policies:
     *   `--ntasks=1`: Requests 1 task per job.
     *   `--cpus-per-task=1`: Requests 1 CPU core per task. Thus, each job will run on a single CPU core.
     *   `--job-name=vaxpipe_{rule}_{wildcards}`: Assigns a dynamic name to each job, incorporating the Snakemake rule name and any wildcards, which helps in tracking jobs on the cluster.
@@ -135,4 +138,4 @@ snakemake --jobs 500 \
     *   `--error=logs/{rule}_{wildcards}.err`: Redirects standard error output to a specific error log file, dynamically named based on the rule and wildcards.
     *   `--output=logs/{rule}_{wildcards}.out`: Redirects standard output to a specific output log file, also dynamically named.
 
-Users should adjust the values for `--jobs`, `--cores`, and particularly the `--cluster` parameters (e.g., memory, time, cpus-per-task, job queues) to match their specific HPC environment and the requirements of their protein design tasks.
+Users should adjust the values for `--jobs`, `--cores`, and particularly the `--executor-arg` submission template (e.g., memory, time, cpus-per-task, job queues) to match their specific HPC environment and the requirements of their protein design tasks.
