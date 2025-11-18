@@ -60,6 +60,7 @@ rule clean_pdb:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
     resources:
         mem_mb=4000
+        cpus=1
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif score_jd2 \
@@ -74,6 +75,8 @@ rule make_symmdef_file1:
     output:
         symm = f"{WORKDIR}/{{sample}}.symm",
         pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
+    resources:
+        cpus=1
     shell:
         """
         {INPUTDIR}/symmetry/make_symmdef_file.pl \
@@ -86,6 +89,8 @@ rule rename_file:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
     output:
         pdbs = f"{WORKDIR}/{{sample}}_new.pdb"
+    resources:
+        cpus=1
     shell:
         """
         mv {input.pdb} {output.pdbs}
@@ -99,6 +104,7 @@ rule relax:
         relaxed_pdb = f"{WORKDIR}/relax_{{sample}}_new_0001.pdb"
     resources:
         mem_mb=4000
+        cpus=1
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif relax \
@@ -119,6 +125,8 @@ rule make_symmdef_file2:
     output:
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
+    resources:
+        cpus=1
     shell:
         """
         {INPUTDIR}/symmetry/make_symmdef_file.pl \
@@ -157,6 +165,7 @@ rule esm_sampling:
         resfile = f"{INPUTDIR}/esm/resfile.resfile",
     resources:
         mem_mb=4000
+        cpus=1
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -182,6 +191,7 @@ rule run_pmpnn:
         protocol = f"{INPUTDIR}/pmpnn/run_mpnn_and_save.xml"
     resources:
         mem_mb=4000
+        cpus=1
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -204,6 +214,7 @@ rule pmpnn_sampling:
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile",
     resources:
         mem_mb=4000
+        cpus=1
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -230,6 +241,7 @@ rule interface_design:
         protocol = f"{INPUTDIR}/interface-design/sym_design.xml",
     resources:
         mem_mb=4000
+        cpus=1
     shell:
         """
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -255,6 +267,8 @@ rule get_fasta_from_pdbs:
         fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta"
     params:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
+    resources:
+        cpus=1
     shell:
         """
         python {params.script} -p {input.pdbs} -c A -o {output.fastafile}
@@ -268,6 +282,8 @@ rule get_wt_fasta:
         fastafile = f"{WORKDIR}/{{sample}}_WT.fasta"
     params:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
+    resources:
+        cpus=1
     shell:
         """
         python {params.script} \
@@ -287,6 +303,8 @@ rule plot_frequencies:
     params:
         script = f"{INPUTDIR}/validate/plot_frequencies.py",
         mutations = len(MUTATIONS)
+    resources:
+        cpus=1
     shell:
         """
         python {params.script} -i {input.fastafile} -r {input.wtfile} -m {params.mutations} -o {output.figure}
@@ -300,6 +318,8 @@ rule get_mutation_list:
         out = f"{WORKDIR}/{{sample}}_{{variant}}/{{m}}.txt"
     params:
         script = f"{INPUTDIR}/validate/design-mutations.py"
+    resources:
+        cpus=1
     shell:
         """
         mkdir -p $(dirname {output.out})
@@ -318,6 +338,7 @@ rule run_design_or_control:
         outdir = f"{WORKDIR}/{{sample}}_{{variant}}/{{mode}}"
     resources:
         mem_mb=4000
+        cpus=1
     shell:
         """
         MUTATION_LINE=$(cat {input.txt})
@@ -346,6 +367,8 @@ rule plot_energy:
         image = f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png"
     params:
         script = f"{INPUTDIR}/validate/plot_energies.py"
+    resources:
+        cpus=1
     shell:
         """
         python {params.script} \
