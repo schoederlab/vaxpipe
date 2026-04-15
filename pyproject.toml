@@ -1,10 +1,12 @@
 [project]
 name = "vaxpipe"
 version = "0.1.0"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 dependencies = [
     "biopython",
     "matplotlib",
     "numpy",
     "pandas",
+    "snakemake>=9.0",
+    "snakemake-executor-plugin-slurm",
 ]
