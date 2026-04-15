@@ -2,23 +2,95 @@
 # Snakefile
 
 import os
+import subprocess
 import yaml
 
 configfile: "config.yaml"
 
 # Configuration
-ROSETTA_DIR = config["rosettadir"]
-INPUTDIR = config["inputdir"]
-WORKDIR = config["workdir"]
-SAMPLES = config["samples"]
-ITERATIONS = config["iterations"]
-MUTATIONS = config["mutations"]
+INPUTDIR   = config["inputdir"]
+WORKDIR    = config["workdir"]
+SAMPLES    = config["samples"]
+ITERATIONS = [f"{i:04d}" for i in range(1, config["iterations"] + 1)]
+MUTATIONS  = [f"{m}" for m in range(1, 21)]
 
 #wildcards
 variants = ["indes","pmpnn", "esm"]
 modes = ["design", "control"]
 wildcard_constraints:
     i = r"\d{4}"
+
+# ── Execution mode setup ───────────────────────────────────────────────────────
+SYSTEM    = config.get("system", "local")
+EXECUTION = config.get("execution", "installation")
+
+def _make_rosetta_cmd(tool, extra_binds=None):
+    """Return the full invocation prefix for a Rosetta tool."""
+    if EXECUTION == "installation":
+        rosettadir = config["rosettadir"]
+        return f"{rosettadir}/main/source/bin/{tool}.pytorchtensorflow.linuxgccrelease"
+    elif EXECUTION == "docker":
+        image = config["docker_image"]
+        vols = f"-v {WORKDIR}:{WORKDIR}"
+        if extra_binds:
+            for b in extra_binds:
+                vols += f" -v {b}"
+        return f"docker run --rm {vols} {image} {tool}"
+    elif EXECUTION == "singularity":
+        sif = config["singularity_sif"]
+        binds = f"-B {WORKDIR}"
+        if extra_binds:
+            for b in extra_binds:
+                binds += f" -B {b}"
+        return f"singularity run {binds} {sif} {tool}"
+    else:
+        raise ValueError(
+            f"Unknown execution mode: '{EXECUTION}'. "
+            "Choose 'installation', 'docker', or 'singularity'."
+        )
+
+# Validate required config keys and (for docker) image availability
+if EXECUTION == "installation":
+    if "rosettadir" not in config:
+        raise ValueError("Config key 'rosettadir' is required when execution: installation")
+elif EXECUTION == "docker":
+    if "docker_image" not in config:
+        raise ValueError("Config key 'docker_image' is required when execution: docker")
+    _img = config["docker_image"]
+    _result = subprocess.run(["docker", "image", "inspect", _img], capture_output=True)
+    if _result.returncode != 0:
+        raise ValueError(
+            f"Docker image '{_img}' not found locally. "
+            f"Pull it first with: docker pull {_img}"
+        )
+elif EXECUTION == "singularity":
+    if "singularity_sif" not in config:
+        raise ValueError("Config key 'singularity_sif' is required when execution: singularity")
+    _sif = config["singularity_sif"]
+    if not os.path.isfile(_sif):
+        raise ValueError(f"Singularity .sif file not found: {_sif}")
+
+# ESM model bind mount (docker/singularity only; installation uses -auto_download)
+_esm_extra_binds = []
+if EXECUTION in ("docker", "singularity") and "esm_model_path" in config:
+    _esm_extra_binds = [
+        config["esm_model_path"]
+        + ":/usr/local/database/protocol_data/tensorflow_graphs/"
+          "tensorflow_graph_repo_submodule/ESM/esm2_t33_650M_UR50D"
+    ]
+
+# Pre-computed per-tool command strings (referenced directly in shell blocks)
+SCORE_JD2_CMD       = _make_rosetta_cmd("score_jd2")
+RELAX_CMD           = _make_rosetta_cmd("relax")
+ROSETTA_SCRIPTS_CMD = _make_rosetta_cmd("rosetta_scripts")
+ESM_CMD             = _make_rosetta_cmd("rosetta_scripts", extra_binds=_esm_extra_binds or None)
+
+# -auto_download is only needed when running the installed binary (ESM rule)
+ESM_AUTO_DOWNLOAD = "-auto_download" if EXECUTION == "installation" else ""
+
+PYTHON_CMD = config["python"]
+
+# ──────────────────────────────────────────────────────────────────────────────
 
 rule all:
     input:
@@ -36,7 +108,6 @@ rule all:
         expand(f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #interface design
         expand(f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
-        #expand(f"{WORKDIR}/{{variant}}_{{sample}}_{{i}}.log", variant=variants, sample=SAMPLES, i=ITERATIONS),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=variants),
@@ -59,7 +130,7 @@ rule clean_pdb:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
     shell:
         """
-        {ROSETTA_DIR}/main/source/bin/score_jd2.pytorchtensorflow.linuxgccrelease \
+        {SCORE_JD2_CMD} \
         -renumber_pdb -ignore_unrecognized_res -s {input.pdb} \
         -out:pdb -out:suffix _clean -out:path:all {WORKDIR}
         """
@@ -97,7 +168,7 @@ rule relax:
         relaxed_pdb = f"{WORKDIR}/relax_{{sample}}_new_0001.pdb"
     shell:
         """
-        {ROSETTA_DIR}/main/source/bin/relax.pytorchtensorflow.linuxgccrelease \
+        {RELAX_CMD} \
         -s {input.pdb} \
         -constrain_relax_to_start_coords \
         -beta \
@@ -130,12 +201,12 @@ rule run_esm:
         protocol = f"{INPUTDIR}/esm/run_esm_and_save.xml"
     shell:
         """
-        {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+        {ESM_CMD} \
         -parser:protocol {params.protocol} \
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
         -beta \
-        -auto_download
+        {ESM_AUTO_DOWNLOAD}
         """
 
 rule esm_sampling:
@@ -150,7 +221,7 @@ rule esm_sampling:
         resfile = f"{INPUTDIR}/esm/resfile.resfile",
     shell:
         """
-        {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+        {ROSETTA_SCRIPTS_CMD} \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -174,7 +245,7 @@ rule run_pmpnn:
         protocol = f"{INPUTDIR}/pmpnn/run_mpnn_and_save.xml"
     shell:
         """
-        {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+        {ROSETTA_SCRIPTS_CMD} \
         -parser:protocol {params.protocol} \
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
@@ -194,7 +265,7 @@ rule pmpnn_sampling:
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile",
     shell:
         """
-        {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+        {ROSETTA_SCRIPTS_CMD} \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -219,7 +290,7 @@ rule interface_design:
         protocol = f"{INPUTDIR}/interface-design/sym_design.xml",
     shell:
         """
-        {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+        {ROSETTA_SCRIPTS_CMD} \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -244,7 +315,7 @@ rule get_fasta_from_pdbs:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
     shell:
         """
-        python {params.script} -p {input.pdbs} -c A -o {output.fastafile}
+        {PYTHON_CMD} {params.script} -p {input.pdbs} -c A -o {output.fastafile}
         """
 
 rule get_wt_fasta:
@@ -257,7 +328,7 @@ rule get_wt_fasta:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
     shell:
         """
-        python {params.script} \
+        {PYTHON_CMD} {params.script} \
         -p {input.pdb} \
         -c A \
         -o {output.fastafile}
@@ -276,7 +347,7 @@ rule plot_frequencies:
         mutations = len(MUTATIONS)
     shell:
         """
-        python {params.script} -i {input.fastafile} -r {input.wtfile} -m {params.mutations} -o {output.figure}
+        {PYTHON_CMD} {params.script} -i {input.fastafile} -r {input.wtfile} -m {params.mutations} -o {output.figure}
         """
 
 rule get_mutation_list:
@@ -290,7 +361,7 @@ rule get_mutation_list:
     shell:
         """
         mkdir -p $(dirname {output.out})
-        python {params.script} -i {input.csv} -o {output.out} \
+        {PYTHON_CMD} {params.script} -i {input.csv} -o {output.out} \
         """
 
 rule run_design_or_control:
@@ -307,12 +378,12 @@ rule run_design_or_control:
     shell:
         """
         MUTATION_LINE=$(cat {input.txt})
-        
+
         mutpos=$(echo $MUTATION_LINE | cut -d'_' -f1)
         mutaa=$(echo $MUTATION_LINE | cut -d'_' -f2)
 
         mkdir -p {params.outdir}
-        {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+        {ROSETTA_SCRIPTS_CMD} \
             -parser:protocol {params.xml} \
             -parser:script_vars mutpos=$mutpos mut_aa=$mutaa protocol={wildcards.mode} symfile={input.symfile} \
             -in:file:s {input.pdb} \
@@ -334,7 +405,7 @@ rule plot_energy:
         script = f"{INPUTDIR}/validate/plot_energies.py"
     shell:
         """
-        python {params.script} \
+        {PYTHON_CMD} {params.script} \
             -i1 $(dirname {input.design[0]}) \
             -i2 $(dirname {input.control[0]}) \
             -o {output.image}

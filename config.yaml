@@ -1,10 +1,43 @@
-# path to ROSETTA
+# ── System ─────────────────────────────────────────────────────────────────────
+# Run system: local | slurm
+system: local
+
+# ── Execution ──────────────────────────────────────────────────────────────────
+# How Rosetta is invoked: installation | docker | singularity
+#
+#   installation  – binary found at:
+#                   {rosettadir}/main/source/bin/*.pytorchtensorflow.linuxgccrelease
+#   docker        – docker run {docker_image} <tool>           (docker_image required)
+#   singularity   – singularity run {singularity_sif} <tool>   (singularity_sif required)
+#
+execution: installation
+
+# Required for execution: installation
 rosettadir: /data/horse/ws/jari462g-ml-rosetta
 
-# Path to working directory
-workdir: /data/horse/ws/jari462g-ml-rosetta/vaxpipe/corona
+# Required for execution: docker  (uncomment and fill in when using docker)
+# docker_image: rosetta_ml:latest
 
+# Required for execution: singularity  (uncomment and fill in when using singularity)
+# singularity_sif: /data/horse/ws/jari462g-ml-rosetta/rosetta_ml.sif
+
+# ESM model weights directory on the host – only needed for docker/singularity execution.
+# The directory is bind-mounted into the container at the expected internal path.
+# (for installation mode, -auto_download is used instead)
+# esm_model_path: /data/horse/ws/jari462g-ml-rosetta/esm2_t33_650M_UR50D
+
+# ── Python environment ────────────────────────────────────────────────────────
+# Path to the Python binary to use for analysis scripts.
+# For uv-managed environments this is typically: /path/to/project/.venv/bin/python
+python: /path/to/.venv/bin/python
+
+# ── Paths ──────────────────────────────────────────────────────────────────────
+workdir: /data/horse/ws/jari462g-ml-rosetta/vaxpipe/corona
 inputdir: /data/horse/ws/jari462g-ml-rosetta/vaxpipe/input_files
 
-# List of samples
+# ── Samples ───────────────────────────────────────────────────────────────────
 samples: pdcov
+
+# ── Iterations ────────────────────────────────────────────────────────────────
+# Number of sampling iterations (ESM, ProteinMPNN, interface design).
+iterations: 200

@@ -16,13 +16,13 @@ It streamlines the process of the prediction of possible amino acid mutations us
 
 ### Local Execution Requirements
 
-- `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
+- Python ≥ 3.9, biopython, matplotlib, numpy, pandas (installed via `uv sync`)
 - [Snakemake ≥ 9.0](https://snakemake.readthedocs.io/en/v9.3.0/)
 - Rosetta compiled with pytorch and tensorflow libraries. A detailed information on how to compile Rosetta with pytorch and tensorflow support can be found [here](https://docs.rosettacommons.org/docs/latest/build_documentation/Building-Rosetta-with-TensorFlow-and-Torch)
 - ESM model (will be downloaded automatically)
 
 ### HPC Requirements
-- `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
+- Python ≥ 3.9, biopython, matplotlib, numpy, pandas (installed via `uv sync`)
 - Snakemake ≥ 9.0
 - **singularity**
 - We provide a snakemake file that relies on a Rosetta docker/singularity image. The image is available on Docker Hub and can be pulled using singularity: `singularity pull docker://rosettacommons/rosetta:ml-387` (used for cluster execution).
@@ -43,16 +43,25 @@ vaxpipe/
 
 ### Installation
 
-generate snakemake conda environment
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) if you haven't already, then create the environment and install all dependencies from the included `pyproject.toml`:
 
-```
-conda create -c conda-forge -c bioconda -n snakemake snakemake
-conda activate snakemake
-pip install snakemake-executor-plugin-slurm
-pip install biopython tqdm matplotlib
+```bash
+uv sync
 ```
 
-**change the `config.yaml` file with the corresponding paths**
+This creates a `.venv` in the repository root. Set `python` in `config.yaml` to the resulting binary:
+
+```yaml
+python: /path/to/vaxpipe/.venv/bin/python
+```
+
+Install Snakemake and the SLURM executor plugin into the same environment:
+
+```bash
+uv pip install snakemake snakemake-executor-plugin-slurm
+```
+
+**Change the remaining paths in `config.yaml` to match your setup.**
 
 ---
 
