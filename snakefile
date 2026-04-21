@@ -48,6 +48,8 @@ rule all:
         expand(f"{WORKDIR}/{{sample}}.a3m", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}.psi", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS),
+        expand(f"{WORKDIR}/{{sample}}_pross_design_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
+        expand(f"{WORKDIR}/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
@@ -309,8 +311,7 @@ rule filterscan:
         path = f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile",
     shell:
         """
-        seq_len=$(grep -v '^>' {input.fasta} | tr -d '\n' | wc -c)
-        for res in $(seq 1 $seq_len); do
+        for res in $(seq 1 $(grep -v '^>' {input.fasta} | tr -d '\n' | wc -c)); do
             {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
                 -parser:protocol {params.protocol} \
                 -s {input.pdb} \
@@ -334,7 +335,7 @@ rule pross_design:
         cst = f"{WORKDIR}/{{sample}}.cst",
         pssm = f"{WORKDIR}/{{sample}}.pssm"
     output:
-        sc = f"{WORKDIR}/pross_design_{{sample}}_{{t}}.sc"
+        sc = f"{WORKDIR}/{{sample}}_pross_design_{{t}}.sc"
     params:
         protocol = f"{INPUTDIR}/pross/design/design.xml",
     shell:
@@ -348,12 +349,12 @@ rule pross_design:
             -parser:script_vars cst_value=0.4 \
             -parser:script_vars pssm_full_path={input.pssm} \
             -parser:script_vars in_resfile={input.resfile} \
-            -overwrite \
+            -overwrite > pross_design.log \
             -ignore_unrecognized_res \
-            -use_occurence_data \
+            -use_input_sc \
+            -use_occurrence_data \
             -out:file:scorefile {output.sc} \
-            -beta
-            -overwrite > pross_design.log
+            -beta \
         """
 
 rule pross_design_wt:
@@ -365,7 +366,7 @@ rule pross_design_wt:
         cst = f"{WORKDIR}/{{sample}}.cst",
         pssm = f"{WORKDIR}/{{sample}}.pssm"
     output:
-        sc = f"{WORKDIR}/pross_design_{{sample}}_wt.sc"
+        sc = f"{WORKDIR}/{{sample}}_pross_wt_{{t}}.sc"
     params:
         protocol = f"{INPUTDIR}/pross/design/design_WT.xml",
     shell:
@@ -379,9 +380,10 @@ rule pross_design_wt:
             -parser:script_vars cst_value=0.4 \
             -parser:script_vars pssm_full_path={input.pssm} \
             -parser:script_vars in_resfile={input.resfile} \
-            -overwrite \
+            -overwrite > pross_wt.log \
             -ignore_unrecognized_res \
-            -use_occurence_data \
+            -use_input_sc \
+            -use_occurrence_data \
             -out:file:scorefile {output.sc} \
             -beta
         """
