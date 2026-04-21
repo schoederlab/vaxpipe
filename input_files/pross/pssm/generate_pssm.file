@@ -1,0 +1,8 @@
+#!/bin/sh
+
+#generate multi-sequence alignment file with hhblits
+hhblits -i $1 -o $2 -hide_cons -d ../../UniRef30_2020_06/UniRef30_2020_06 -oa3m $3
+#convert hhblits output to psiblast readable format
+awk '/^>/ {print; next} {gsub(/[a-z]/,""); print}' $3 > $4
+#generate .pssm with psiblast
+psiblast -subject $1 -out $5 -in_msa $4 -out_ascii_pssm $6

@@ -11,12 +11,16 @@ ROSETTA_DIR = config["rosettadir"]
 INPUTDIR = config["inputdir"]
 WORKDIR = config["workdir"]
 SAMPLES = config["samples"]
-ITERATIONS = config["iterations"]
-MUTATIONS = config["mutations"]
+ITERATIONS = [f"{i:04d}" for i in range(1, 6)]
+MUTATIONS = [f"{m}" for m in range(1, 6)]
+PROSS_TEMPS = config["pross_temps"]
+PROSS_TEMPS_STR = [str(t) for t in PROSS_TEMPS]
 
 #wildcards
-variants = ["indes","pmpnn", "esm"]
+variants = ["pmpnn","indes","esm","pross"]
+analysis_variants = ["pmpnn","indes","esm"]
 modes = ["design", "control"]
+
 wildcard_constraints:
     i = r"\d{4}"
 
@@ -37,16 +41,23 @@ rule all:
         #interface design
         expand(f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #expand(f"{WORKDIR}/{{variant}}_{{sample}}_{{i}}.log", variant=variants, sample=SAMPLES, i=ITERATIONS),
+        #pross
+        expand(f"{WORKDIR}/{{sample}}.pssm", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}.cst", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}.hhr", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}.a3m", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}.psi", sample=SAMPLES),
+        expand(f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=variants),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}_frequency.png", sample=SAMPLES, variant=variants),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=variants),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}/{{m}}.txt", sample=SAMPLES, variant=variants, m=MUTATIONS),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}_frequency.png", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}/{{m}}.txt", sample=SAMPLES, variant=analysis_variants, m=MUTATIONS),
         #design
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}/{{mode}}/{{m}}.sc", m=MUTATIONS, sample=SAMPLES, mode=modes, variant=variants),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}/{{mode}}/{{m}}.sc", m=MUTATIONS, sample=SAMPLES, mode=modes, variant=analysis_variants),
         #plotting
-        expand(f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=variants)
+        expand(f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=analysis_variants)
 
 ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > get_wt_fasta > run_esm > run_pmpnn > esm_sampling > pmpnn_sampling > interface_design \
   > get_fasta_from_pdbs > plot_frequencies > get_mutation_list > run_design_or_control > plot_energy
@@ -135,7 +146,8 @@ rule run_esm:
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
         -beta \
-        -auto_download
+        -auto_download \
+        -overwrite
         """
 
 rule esm_sampling:
@@ -179,6 +191,7 @@ rule run_pmpnn:
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
         -beta \
+        -overwrite
         """
 
 rule pmpnn_sampling:
@@ -235,11 +248,11 @@ rule get_fasta_from_pdbs:
     localrule: True
     input:
         pdbs = lambda wildcards: expand(
-            f"{WORKDIR}/{wildcards.variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
+            f"{WORKDIR}/{wildcards.analysis_variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
             i=ITERATIONS
         )
     output:
-        fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta"
+        fastafile = f"{WORKDIR}/{{sample}}_{{analysis_variant}}.fasta"
     params:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
     shell:
@@ -261,6 +274,116 @@ rule get_wt_fasta:
         -p {input.pdb} \
         -c A \
         -o {output.fastafile}
+        """
+
+rule generate_PSSM_and_constraints:
+    input:
+        fastafile = f"{WORKDIR}/{{sample}}_WT.fasta",
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
+    output:
+        hhr = f"{WORKDIR}/{{sample}}.hhr",
+        a3m = f"{WORKDIR}/{{sample}}.a3m",
+        psi = f"{WORKDIR}/{{sample}}.psi",
+        pssm = f"{WORKDIR}/{{sample}}.pssm",
+        cst = f"{WORKDIR}/{{sample}}.cst",
+        hhr_log = f"{WORKDIR}/{{sample}}_hhr.log"
+    shell:
+        """
+        bash {INPUTDIR}/pross/pssm/generate_pssm.file \
+        {input.fastafile} {output.hhr} {output.a3m} {output.psi} {output.hhr_log} {output.pssm}
+        bash {INPUTDIR}/pross/filter/make_cst.sh {input.pdb} > {output.cst}
+        """
+
+rule filterscan:
+    localrule: True
+    input:
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
+        symm = f"{WORKDIR}/{{sample}}_2.symm",
+        cst = f"{WORKDIR}/{{sample}}.cst",
+        pssm = f"{WORKDIR}/{{sample}}.pssm",
+        fasta = f"{WORKDIR}/{{sample}}_WT.fasta"
+    output:
+        resfiles_path = f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
+    params:
+        protocol = f"{INPUTDIR}/pross/filter/filterscan.xml",
+        path = f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile",
+    shell:
+        """
+        seq_len=$(grep -v '^>' {input.fasta} | tr -d '\n' | wc -c)
+        for res in $(seq 1 $seq_len); do
+            {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+                -parser:protocol {params.protocol} \
+                -s {input.pdb} \
+                -parser:script_vars sym={input.symm} \
+                -parser:script_vars pdb_reference={input.pdb} \
+                -parser:script_vars cst_full_path={input.cst} \
+                -parser:script_vars cst_value=0.4 \
+                -parser:script_vars pssm_full_path={input.pssm} \
+                -parser:script_vars resfiles_path={params.path} \
+                -parser:script_vars current_res=$res \
+                -beta \
+                -overwrite > filterscan.log
+        done
+        """
+
+rule pross_design:
+    input:
+        resfile = f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
+        symm = f"{WORKDIR}/{{sample}}_2.symm",
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
+        cst = f"{WORKDIR}/{{sample}}.cst",
+        pssm = f"{WORKDIR}/{{sample}}.pssm"
+    output:
+        sc = f"{WORKDIR}/pross_design_{{sample}}_{{t}}.sc"
+    params:
+        protocol = f"{INPUTDIR}/pross/design/design.xml",
+    shell:
+        """
+        {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+            -parser:protocol {params.protocol} \
+            -s {input.pdb} \
+            -parser:script_vars sym={input.symm} \
+            -parser:script_vars pdb_reference={input.pdb} \
+            -parser:script_vars cst_full_path={input.cst} \
+            -parser:script_vars cst_value=0.4 \
+            -parser:script_vars pssm_full_path={input.pssm} \
+            -parser:script_vars in_resfile={input.resfile} \
+            -overwrite \
+            -ignore_unrecognized_res \
+            -use_occurence_data \
+            -out:file:scorefile {output.sc} \
+            -beta
+            -overwrite > pross_design.log
+        """
+
+rule pross_design_wt:
+    localrule: True
+    input:
+        resfile = f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
+        symm = f"{WORKDIR}/{{sample}}_2.symm",
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
+        cst = f"{WORKDIR}/{{sample}}.cst",
+        pssm = f"{WORKDIR}/{{sample}}.pssm"
+    output:
+        sc = f"{WORKDIR}/pross_design_{{sample}}_wt.sc"
+    params:
+        protocol = f"{INPUTDIR}/pross/design/design_WT.xml",
+    shell:
+        """
+        {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
+            -parser:protocol {params.protocol} \
+            -s {input.pdb} \
+            -parser:script_vars sym={input.symm} \
+            -parser:script_vars pdb_reference={input.pdb} \
+            -parser:script_vars cst_full_path={input.cst} \
+            -parser:script_vars cst_value=0.4 \
+            -parser:script_vars pssm_full_path={input.pssm} \
+            -parser:script_vars in_resfile={input.resfile} \
+            -overwrite \
+            -ignore_unrecognized_res \
+            -use_occurence_data \
+            -out:file:scorefile {output.sc} \
+            -beta
         """
 
 rule plot_frequencies:

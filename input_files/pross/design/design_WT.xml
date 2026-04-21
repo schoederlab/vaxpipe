@@ -1,0 +1,69 @@
+<ROSETTASCRIPTS>
+<SCOREFXNS>
+<ScoreFunction name="beta_full" weights="beta" symmetric="1">
+    <Reweight scoretype="coordinate_constraint" weight="%%cst_value%%"/>
+    <Reweight scoretype="res_type_constraint" weight="0.4"/>
+</ScoreFunction>
+<ScoreFunction name="soft_rep_full" weights="beta_soft" symmetric="1">
+    <Reweight scoretype="coordinate_constraint" weight="%%cst_value%%"/>
+    <Reweight scoretype="res_type_constraint" weight="0.4"/>
+</ScoreFunction>
+<ScoreFunction name="beta_no_pssm" weights="beta" symmetric="1">
+    <Reweight scoretype="coordinate_constraint" weight="%%cst_value%%"/>
+</ScoreFunction>
+    <ScoreFunction name="beta_pure" weights="beta" symmetric="1"/>
+</SCOREFXNS>
+<RESIDUE_SELECTORS>
+    <True name="all_res"/>
+</RESIDUE_SELECTORS>
+<TASKOPERATIONS>
+<InitializeFromCommandline name="init"/>
+<ReadResfile name="read_resfile" filename="%%in_resfile%%"/>
+<RestrictToRepacking name="rtr"/>
+<OperateOnResidueSubset name="restrict_all_res" selector="all_res" >
+<RestrictToRepackingRLT/>
+</OperateOnResidueSubset>
+<SeqprofConsensus name="pssm_cutoff" filename="%%pssm_full_path%%" min_aa_probability="0" convert_scores_to_probabilities="0" probability_larger_than_current="0"
+keep_native="1"/>/>
+</TASKOPERATIONS>
+<MOVERS>
+<SetupForSymmetry name="setup_symm" definition="%%sym%%.symm" set_global_symmetry_at_parsetime="0"/>
+<SymPackRotamersMover name="soft_design" scorefxn="soft_rep_full" task_operations="init,read_resfile,pssm_cutoff,restrict_all_res"/>
+<SymPackRotamersMover name="hard_design" scorefxn="beta_full" task_operations="init,read_resfile,pssm_cutoff,restrict_all_res"/>
+<SymRotamerTrialsMover name="RTmin" scorefxn="beta_full" task_operations="init,rtr,restrict_all_res"/>
+<SymMinMover name="soft_min" scorefxn="soft_rep_full" chi="1" bb="1" jump="0"/>
+<SymMinMover name="hard_min" scorefxn="beta_full" chi="1" bb="1" jump="0"/>
+<ConstraintSetMover name="add_CA_cst" cst_file="%%cst_full_path%%"/>
+<FavorSequenceProfile name="FSP" pssm="%%pssm_full_path%%" scaling="none" scorefxns="beta_full" weight="1"/>
+<ParsedProtocol name="design_block">
+<Add mover_name="soft_design"/>
+<Add mover_name="soft_min"/>
+<Add mover_name="soft_design"/>
+<Add mover_name="hard_min"/>
+<Add mover_name="hard_design"/>
+<Add mover_name="hard_min"/>
+<Add mover_name="hard_design"/>
+<Add mover_name="RTmin"/>
+<Add mover_name="RTmin"/>
+<Add mover_name="hard_min"/>
+</ParsedProtocol>
+<LoopOver iterations="4" mover_name="design_block" name="iter4"/>
+</MOVERS>
+<FILTERS>
+<ScoreType confidence="0" name="stability_score_full" score_type="total_score" scorefxn="beta_full" threshold="0"/>
+<ScoreType confidence="0" name="stability_without_pssm" score_type="total_score" scorefxn="beta_no_pssm" threshold="0"/>
+<ScoreType confidence="0" name="stability_pure" score_type="total_score" scorefxn="beta_pure" threshold="0"/>
+<Time name="timer"/>
+</FILTERS>
+<PROTOCOLS>
+<Add mover_name="setup_symm"/>
+<Add filter_name="timer"/>
+<Add mover_name="add_CA_cst"/>
+<Add mover_name="FSP"/>
+<Add mover_name="iter4"/>
+<Add filter_name="stability_score_full"/>
+<Add filter_name="stability_without_pssm"/>
+<Add filter_name="stability_pure"/>
+<Add filter_name="timer"/>
+</PROTOCOLS>
+</ROSETTASCRIPTS>
