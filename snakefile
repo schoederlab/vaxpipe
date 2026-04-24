@@ -33,33 +33,33 @@ rule all:
         expand(f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_2.symm", sample=SAMPLES),
         #esm
-        expand(f"{WORKDIR}/{{sample}}_esm_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/esm_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
+        expand(f"{WORKDIR}/esm/{{sample}}_esm_probs.weights", sample=SAMPLES),
+        expand(f"{WORKDIR}/esm/esm_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #mpnn
-        expand(f"{WORKDIR}/{{sample}}_mpnn_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
+        expand(f"{WORKDIR}/pmpnn/{{sample}}_mpnn_probs.weights", sample=SAMPLES),
+        expand(f"{WORKDIR}/pmpnn/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #interface design
-        expand(f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
+        expand(f"{WORKDIR}/indes/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #expand(f"{WORKDIR}/{{variant}}_{{sample}}_{{i}}.log", variant=variants, sample=SAMPLES, i=ITERATIONS),
         #pross
-        expand(f"{WORKDIR}/{{sample}}.pssm", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}.cst", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}.hhr", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}.a3m", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}.psi", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS),
-        expand(f"{WORKDIR}/{{sample}}_pross_design_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
-        expand(f"{WORKDIR}/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
+        expand(f"{WORKDIR}/pross/{{sample}}.pssm", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}.cst", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}.hhr", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}.a3m", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}.psi", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS),
+        expand(f"{WORKDIR}/pross/{{sample}}_pross_design_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
+        expand(f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}_frequency.png", sample=SAMPLES, variant=analysis_variants),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=analysis_variants),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}/{{m}}.txt", sample=SAMPLES, variant=analysis_variants, m=MUTATIONS),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.png", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{m}}.txt", sample=SAMPLES, variant=analysis_variants, m=MUTATIONS),
         #design
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}/{{mode}}/{{m}}.sc", m=MUTATIONS, sample=SAMPLES, mode=modes, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}/{{m}}.sc", m=MUTATIONS, sample=SAMPLES, mode=modes, variant=analysis_variants),
         #plotting
-        expand(f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=analysis_variants)
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=analysis_variants)
 
 ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > get_wt_fasta > run_esm > run_pmpnn > esm_sampling > pmpnn_sampling > interface_design \
   > get_fasta_from_pdbs > plot_frequencies > get_mutation_list > run_design_or_control > plot_energy
@@ -72,6 +72,10 @@ rule clean_pdb:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
     shell:
         """
+        mkdir -p {WORKDIR}/esm
+        mkdir -p {WORKDIR}/pmpnn
+        mkdir -p {WORKDIR}/indes
+        mkdir -p {WORKDIR}/pross
         {ROSETTA_DIR}/main/source/bin/score_jd2.pytorchtensorflow.linuxgccrelease \
         -renumber_pdb -ignore_unrecognized_res -s {input.pdb} \
         -out:pdb -out:suffix _clean -out:path:all {WORKDIR}
@@ -138,7 +142,7 @@ rule run_esm:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
-        weights = f"{WORKDIR}/{{sample}}_esm_probs.weights"
+        weights = f"{WORKDIR}/esm/{{sample}}_esm_probs.weights"
     params:
         protocol = f"{INPUTDIR}/esm/run_esm_and_save.xml"
     shell:
@@ -149,7 +153,7 @@ rule run_esm:
         -s {input.pdb} \
         -beta \
         -auto_download \
-        -out:path:all {WORKDIR} \
+        -out:path:all {WORKDIR}/esm \
         -overwrite
         """
 
@@ -157,9 +161,9 @@ rule esm_sampling:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
-        weights = f"{WORKDIR}/{{sample}}_esm_probs.weights"
+        weights = f"{WORKDIR}/esm/{{sample}}_esm_probs.weights"
     output:
-        pdb = f"{WORKDIR}/esm_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb",
+        pdb = f"{WORKDIR}/esm/esm_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb",
     params:
         protocol = f"{INPUTDIR}/esm/sample_mutations.xml",
         resfile = f"{INPUTDIR}/esm/resfile.resfile",
@@ -176,8 +180,8 @@ rule esm_sampling:
             -out:prefix esm_ \
             -out:suffix _{wildcards.i} \
             -beta \
-            -out:path:all {WORKDIR} \
-            -overwrite > {WORKDIR}/esm.log
+            -out:path:all {WORKDIR}/esm \
+            -overwrite > {WORKDIR}/esm/esm.log
         """
 
 rule run_pmpnn:
@@ -185,7 +189,7 @@ rule run_pmpnn:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
-        weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
+        weights = f"{WORKDIR}/pmpnn/{{sample}}_mpnn_probs.weights"
     params:
         protocol = f"{INPUTDIR}/pmpnn/run_mpnn_and_save.xml"
     shell:
@@ -195,7 +199,7 @@ rule run_pmpnn:
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
         -beta \
-        -out:path:all {WORKDIR} \
+        -out:path:all {WORKDIR}/pmpnn \
         -overwrite
         """
 
@@ -204,9 +208,9 @@ rule pmpnn_sampling:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
-        weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
+        weights = f"{WORKDIR}/pmpnn/{{sample}}_mpnn_probs.weights"
     output:
-        pdb = f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb",
+        pdb = f"{WORKDIR}/pmpnn/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb",
     params:
         protocol = f"{INPUTDIR}/pmpnn/sample_mutations.xml",
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile",
@@ -223,8 +227,8 @@ rule pmpnn_sampling:
             -out:prefix pmpnn_ \
             -out:suffix _{wildcards.i} \
             -beta \
-            -out:path:all {WORKDIR} \
-            -overwrite > {WORKDIR}/pmpnn.log
+            -out:path:all {WORKDIR}/pmpnn \
+            -overwrite > {WORKDIR}/pmpnn/pmpnn.log
         """
 
 rule interface_design:
@@ -233,7 +237,7 @@ rule interface_design:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm"
     output:
-        pdb = f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb"
+        pdb = f"{WORKDIR}/indes/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb"
     params:
         protocol = f"{INPUTDIR}/interface-design/sym_design.xml",
     shell:
@@ -244,18 +248,18 @@ rule interface_design:
             -parser:script_vars sym={input.symm} \
             -beta \
             -out:pdb true \
-            -out:path:all {WORKDIR} \
+            -out:path:all {WORKDIR}/indes \
             -out:prefix indes_ \
             -out:suffix _{wildcards.i} \
-            -out:path:all {WORKDIR} \
-            -overwrite > {WORKDIR}/indes.log
+            -out:path:all {WORKDIR}/indes \
+            -overwrite > {WORKDIR}/indes/indes.log
         """
 
 rule get_fasta_from_pdbs:
     localrule: True
     input:
         pdbs = lambda wildcards: expand(
-            f"{WORKDIR}/{wildcards.analysis_variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
+            f"{WORKDIR}/{wildcards.analysis_variant}/{wildcards.analysis_variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
             i=ITERATIONS
         )
     output:
@@ -288,12 +292,12 @@ rule generate_PSSM_and_constraints:
         fastafile = f"{WORKDIR}/{{sample}}_WT.fasta",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
-        hhr = f"{WORKDIR}/{{sample}}.hhr",
-        a3m = f"{WORKDIR}/{{sample}}.a3m",
-        psi = f"{WORKDIR}/{{sample}}.psi",
-        pssm = f"{WORKDIR}/{{sample}}.pssm",
-        cst = f"{WORKDIR}/{{sample}}.cst",
-        hhr_log = f"{WORKDIR}/{{sample}}_hhr.log"
+        hhr = f"{WORKDIR}/pross/{{sample}}.hhr",
+        a3m = f"{WORKDIR}/pross/{{sample}}.a3m",
+        psi = f"{WORKDIR}/pross/{{sample}}.psi",
+        pssm = f"{WORKDIR}/pross/{{sample}}.pssm",
+        cst = f"{WORKDIR}/pross/{{sample}}.cst",
+        hhr_log = f"{WORKDIR}/pross/{{sample}}_hhr.log"
     shell:
         """
         bash {INPUTDIR}/pross/pssm/generate_pssm.file \
@@ -306,14 +310,14 @@ rule filterscan:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
-        cst = f"{WORKDIR}/{{sample}}.cst",
-        pssm = f"{WORKDIR}/{{sample}}.pssm",
+        cst = f"{WORKDIR}/pross/{{sample}}.cst",
+        pssm = f"{WORKDIR}/pross/{{sample}}.pssm",
         fasta = f"{WORKDIR}/{{sample}}_WT.fasta"
     output:
-        resfiles_path = f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
+        resfiles_path = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
     params:
         protocol = f"{INPUTDIR}/pross/filter/filterscan.xml",
-        path = f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile",
+        path = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile",
     shell:
         """
         for res in $(seq 1 $(grep -v '^>' {input.fasta} | tr -d '\n' | wc -c)); do
@@ -327,21 +331,21 @@ rule filterscan:
                 -parser:script_vars pssm_full_path={input.pssm} \
                 -parser:script_vars resfiles_path={params.path} \
                 -parser:script_vars current_res=$res \
-                -out:path:all {WORKDIR} \
+                -out:path:all {WORKDIR}/pross \
                 -beta \
-                -overwrite > {WORKDIR}/filterscan.log
+                -overwrite > {WORKDIR}/pross/filterscan.log
         done
         """
 
 rule pross_design:
     input:
-        resfile = f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
+        resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
-        cst = f"{WORKDIR}/{{sample}}.cst",
-        pssm = f"{WORKDIR}/{{sample}}.pssm"
+        cst = f"{WORKDIR}/pross/{{sample}}.cst",
+        pssm = f"{WORKDIR}/pross/{{sample}}.pssm"
     output:
-        sc = f"{WORKDIR}/{{sample}}_pross_design_{{t}}.sc"
+        sc = f"{WORKDIR}/pross/{{sample}}_pross_design_{{t}}.sc"
     params:
         protocol = f"{INPUTDIR}/pross/design/design.xml",
     shell:
@@ -355,25 +359,26 @@ rule pross_design:
             -parser:script_vars cst_value=0.4 \
             -parser:script_vars pssm_full_path={input.pssm} \
             -parser:script_vars in_resfile={input.resfile} \
-            -overwrite > {WORKDIR}/pross_design.log \
+            -overwrite > {WORKDIR}/pross/pross_design.log \
             -ignore_unrecognized_res \
             -use_input_sc \
             -use_occurrence_data \
             -out:file:scorefile {output.sc} \
-            -out:path:all {WORKDIR} \
+            -out:path:all {WORKDIR}/pross \
+            -out:prefix pross_design_{wildcards.t} \
             -beta \
         """
 
 rule pross_design_wt:
     localrule: True
     input:
-        resfile = f"{WORKDIR}/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
+        resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
-        cst = f"{WORKDIR}/{{sample}}.cst",
-        pssm = f"{WORKDIR}/{{sample}}.pssm"
+        cst = f"{WORKDIR}/pross/{{sample}}.cst",
+        pssm = f"{WORKDIR}/pross/{{sample}}.pssm"
     output:
-        sc = f"{WORKDIR}/{{sample}}_pross_wt_{{t}}.sc"
+        sc = f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc"
     params:
         protocol = f"{INPUTDIR}/pross/design/design_WT.xml",
     shell:
@@ -387,13 +392,14 @@ rule pross_design_wt:
             -parser:script_vars cst_value=0.4 \
             -parser:script_vars pssm_full_path={input.pssm} \
             -parser:script_vars in_resfile={input.resfile} \
-            -overwrite > {WORKDIR}/pross_wt.log \
-            -out:path:all {WORKDIR} \
+            -overwrite > {WORKDIR}/pross/pross_wt.log \
+            -out:path:all {WORKDIR}/pross \
             -ignore_unrecognized_res \
             -use_input_sc \
             -use_occurrence_data \
             -out:file:scorefile {output.sc} \
-            -out:path:all {WORKDIR} \
+            -out:prefix pross_wt_{wildcards.t} \
+            -out:path:all {WORKDIR}/pross \
             -beta
         """
 
@@ -403,8 +409,8 @@ rule plot_frequencies:
         fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta",
         wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
     output:
-        figure = f"{WORKDIR}/{{sample}}_{{variant}}_frequency.png",
-        csv = f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv"
+        figure = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.png",
+        csv = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.csv"
     params:
         script = f"{INPUTDIR}/validate/plot_frequencies.py",
         mutations = len(MUTATIONS)
@@ -416,9 +422,9 @@ rule plot_frequencies:
 rule get_mutation_list:
     localrule: True
     input:
-        csv = f"{WORKDIR}/{{sample}}_{{variant}}_frequency.csv"
+        csv = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.csv"
     output:
-        out = f"{WORKDIR}/{{sample}}_{{variant}}/{{m}}.txt"
+        out = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{m}}.txt"
     params:
         script = f"{INPUTDIR}/validate/design-mutations.py"
     shell:
@@ -430,14 +436,14 @@ rule get_mutation_list:
 rule run_design_or_control:
     localrule: True
     input:
-        txt = f"{WORKDIR}/{{sample}}_{{variant}}/{{m}}.txt",
+        txt = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{m}}.txt",
         symfile = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
-        sc =  f"{WORKDIR}/{{sample}}_{{variant}}/{{mode}}/{{m}}.sc"
+        sc =  f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}/{{m}}.sc"
     params:
         xml = f"{INPUTDIR}/validate/design.v02.xml",
-        outdir = f"{WORKDIR}/{{sample}}_{{variant}}/{{mode}}"
+        outdir = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}"
     shell:
         """
         MUTATION_LINE=$(cat {input.txt})
@@ -452,7 +458,7 @@ rule run_design_or_control:
             -in:file:s {input.pdb} \
             -corrections:beta_nov16 \
             -out:file:scorefile {output.sc} \
-            -out:path:all {WORKDIR} \
+            -out:path:all {WORKDIR}/{wildcards.variant}/ \
             -overwrite \
             -nstruct 20 \
             -beta
@@ -461,10 +467,10 @@ rule run_design_or_control:
 rule plot_energy:
     localrule: True
     input:
-        control = lambda wildcards: expand(f"{WORKDIR}/{wildcards.sample}_{wildcards.variant}/control/{{m}}.sc", m=MUTATIONS),
-        design = lambda wildcards: expand(f"{WORKDIR}/{wildcards.sample}_{wildcards.variant}/design/{{m}}.sc", m=MUTATIONS),
+        control = lambda wildcards: expand(f"{WORKDIR}/{wildcards.variant}/{wildcards.sample}_{wildcards.variant}/control/{{m}}.sc", m=MUTATIONS),
+        design = lambda wildcards: expand(f"{WORKDIR}/{wildcards.variant}/{wildcards.sample}_{wildcards.variant}/design/{{m}}.sc", m=MUTATIONS),
     output:
-        image = f"{WORKDIR}/{{sample}}_energydifference_{{variant}}.png"
+        image = f"{WORKDIR}/{{variant}}/{{sample}}_energydifference_{{variant}}.png"
     params:
         script = f"{INPUTDIR}/validate/plot_energies.py"
     shell:
