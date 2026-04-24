@@ -21,7 +21,7 @@
 keep_native="1"/>/>
 </TASKOPERATIONS>
 <MOVERS>
-<SetupForSymmetry name="setup_symm" definition="%%sym%%.symm" set_global_symmetry_at_parsetime="0"/>
+<SetupForSymmetry name="setup_symm" definition="%%sym%%" set_global_symmetry_at_parsetime="0"/>
 <SymPackRotamersMover name="soft_design" scorefxn="soft_rep_full" task_operations="init,read_resfile,pssm_cutoff"/>
 <SymPackRotamersMover name="hard_design" scorefxn="beta_full" task_operations="init,read_resfile,pssm_cutoff"/>
 <SymRotamerTrialsMover name="RTmin" scorefxn="beta_full" task_operations="init,rtr"/>

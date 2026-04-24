@@ -149,6 +149,7 @@ rule run_esm:
         -s {input.pdb} \
         -beta \
         -auto_download \
+        -out:path:all {WORKDIR} \
         -overwrite
         """
 
@@ -175,7 +176,8 @@ rule esm_sampling:
             -out:prefix esm_ \
             -out:suffix _{wildcards.i} \
             -beta \
-            -overwrite > esm.log
+            -out:path:all {WORKDIR} \
+            -overwrite > {WORKDIR}/esm.log
         """
 
 rule run_pmpnn:
@@ -193,6 +195,7 @@ rule run_pmpnn:
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
         -beta \
+        -out:path:all {WORKDIR} \
         -overwrite
         """
 
@@ -220,7 +223,8 @@ rule pmpnn_sampling:
             -out:prefix pmpnn_ \
             -out:suffix _{wildcards.i} \
             -beta \
-            -overwrite > pmpnn.log
+            -out:path:all {WORKDIR} \
+            -overwrite > {WORKDIR}/pmpnn.log
         """
 
 rule interface_design:
@@ -243,7 +247,8 @@ rule interface_design:
             -out:path:all {WORKDIR} \
             -out:prefix indes_ \
             -out:suffix _{wildcards.i} \
-            -overwrite > indes.log
+            -out:path:all {WORKDIR} \
+            -overwrite > {WORKDIR}/indes.log
         """
 
 rule get_fasta_from_pdbs:
@@ -322,8 +327,9 @@ rule filterscan:
                 -parser:script_vars pssm_full_path={input.pssm} \
                 -parser:script_vars resfiles_path={params.path} \
                 -parser:script_vars current_res=$res \
+                -out:path:all {WORKDIR} \
                 -beta \
-                -overwrite > filterscan.log
+                -overwrite > {WORKDIR}/filterscan.log
         done
         """
 
@@ -349,11 +355,12 @@ rule pross_design:
             -parser:script_vars cst_value=0.4 \
             -parser:script_vars pssm_full_path={input.pssm} \
             -parser:script_vars in_resfile={input.resfile} \
-            -overwrite > pross_design.log \
+            -overwrite > {WORKDIR}/pross_design.log \
             -ignore_unrecognized_res \
             -use_input_sc \
             -use_occurrence_data \
             -out:file:scorefile {output.sc} \
+            -out:path:all {WORKDIR} \
             -beta \
         """
 
@@ -380,11 +387,13 @@ rule pross_design_wt:
             -parser:script_vars cst_value=0.4 \
             -parser:script_vars pssm_full_path={input.pssm} \
             -parser:script_vars in_resfile={input.resfile} \
-            -overwrite > pross_wt.log \
+            -overwrite > {WORKDIR}/pross_wt.log \
+            -out:path:all {WORKDIR} \
             -ignore_unrecognized_res \
             -use_input_sc \
             -use_occurrence_data \
             -out:file:scorefile {output.sc} \
+            -out:path:all {WORKDIR} \
             -beta
         """
 
@@ -443,6 +452,7 @@ rule run_design_or_control:
             -in:file:s {input.pdb} \
             -corrections:beta_nov16 \
             -out:file:scorefile {output.sc} \
+            -out:path:all {WORKDIR} \
             -overwrite \
             -nstruct 20 \
             -beta
