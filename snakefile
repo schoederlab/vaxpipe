@@ -52,7 +52,7 @@ rule all:
         expand(f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
         expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.png", sample=SAMPLES, variant=analysis_variants),
         expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=analysis_variants),
         expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{m}}.txt", sample=SAMPLES, variant=analysis_variants, m=MUTATIONS),
@@ -263,7 +263,7 @@ rule get_fasta_from_pdbs:
             i=ITERATIONS
         )
     output:
-        fastafile = f"{WORKDIR}/{{sample}}_{{analysis_variant}}.fasta"
+        fastafile = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta"
     params:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
     shell:

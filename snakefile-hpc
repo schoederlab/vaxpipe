@@ -14,7 +14,8 @@ PROSS_TEMPS = config["pross_temps"]
 PROSS_TEMPS_STR = [str(t) for t in PROSS_TEMPS]
 
 #wildcards
-variants = ["esm","indes","pmpnn"]
+variants = ["esm","indes","pmpnn", "pross"]
+analysis_variants = ["esm","indes","pmpnn"]
 modes = ["design", "control"]
 ITERATIONS = [f"{i:04d}" for i in range(1, 201)]
 MUTATIONS = [f"{m}" for m in range(1, 21)]
@@ -32,13 +33,13 @@ rule all:
         expand(f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb", sample=SAMPLES),
         expand(f"{WORKDIR}/{{sample}}_2.symm", sample=SAMPLES),
         #esm
-        expand(f"{WORKDIR}/{{sample}}_esm_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/esm_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
+        expand(f"{WORKDIR}/esm/{{sample}}_esm_probs.weights", sample=SAMPLES),
+        expand(f"{WORKDIR}/esm/esm_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #mpnn
-        expand(f"{WORKDIR}/{{sample}}_mpnn_probs.weights", sample=SAMPLES),
-        expand(f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
+        expand(f"{WORKDIR}/pmpnn/{{sample}}_mpnn_probs.weights", sample=SAMPLES),
+        expand(f"{WORKDIR}/pmpnn/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #interface design
-        expand(f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
+        expand(f"{WORKDIR}/indes/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #pross
         expand(f"{WORKDIR}/pross/{{sample}}.pssm", sample=SAMPLES),
         expand(f"{WORKDIR}/pross/{{sample}}.cst", sample=SAMPLES),
@@ -50,14 +51,14 @@ rule all:
         expand(f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=variants),
-        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.png", sample=SAMPLES, variant=variants),
-        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=variants),
-        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{m}}.txt", sample=SAMPLES, variant=variants, m=MUTATIONS),
+        expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.png", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{m}}.txt", sample=SAMPLES, variant=analysis_variants, m=MUTATIONS),
         #design
-        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}/{{m}}.sc", m=MUTATIONS, sample=SAMPLES, mode=modes, variant=variants),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}/{{m}}.sc", m=MUTATIONS, sample=SAMPLES, mode=modes, variant=analysis_variants),
         #plotting
-        expand(f"{WORKDIR}/{{variant}}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=variants)
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=analysis_variants)
         #add proliNNator and disulfiNNate
         #expand(f"{WORKDIR}/{{sample}}_prolinnator.csv", sample=SAMPLES),
         #expand(f"{WORKDIR}/{{sample}}_disulfinnate.csv", sample=SAMPLES)
@@ -151,7 +152,7 @@ rule run_esm:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
-        weights = f"{WORKDIR}/{{sample}}_esm_probs.weights"
+        weights = f"{WORKDIR}/esm/{{sample}}_esm_probs.weights"
     params:
         protocol = f"{INPUTDIR}/esm/run_esm_and_save.xml"
     resources:
@@ -171,9 +172,9 @@ rule esm_sampling:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
-        weights = f"{WORKDIR}/{{sample}}_esm_probs.weights"
+        weights = f"{WORKDIR}/esm/{{sample}}_esm_probs.weights"
     output:
-        pdb = f"{WORKDIR}/esm_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb",
+        pdb = f"{WORKDIR}/esm/esm_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb",
     params:
         protocol = f"{INPUTDIR}/esm/sample_mutations.xml",
         resfile = f"{INPUTDIR}/esm/resfile.resfile",
@@ -200,7 +201,7 @@ rule run_pmpnn:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
-        weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
+        weights = f"{WORKDIR}/pmpnn/{{sample}}_mpnn_probs.weights"
     params:
         protocol = f"{INPUTDIR}/pmpnn/run_mpnn_and_save.xml"
     resources:
@@ -220,9 +221,9 @@ rule pmpnn_sampling:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
-        weights = f"{WORKDIR}/{{sample}}_mpnn_probs.weights"
+        weights = f"{WORKDIR}/pmpnn/{{sample}}_mpnn_probs.weights"
     output:
-        pdb = f"{WORKDIR}/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb",
+        pdb = f"{WORKDIR}/pmpnn/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb",
     params:
         protocol = f"{INPUTDIR}/pmpnn/sample_mutations.xml",
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile",
@@ -250,7 +251,7 @@ rule interface_design:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm"
     output:
-        pdb = f"{WORKDIR}/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb"
+        pdb = f"{WORKDIR}/indes/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb"
     params:
         protocol = f"{INPUTDIR}/interface-design/sym_design.xml",
     resources:
@@ -274,11 +275,11 @@ rule get_fasta_from_pdbs:
     localrule: True
     input:
         pdbs = lambda wildcards: expand(
-            f"{WORKDIR}/{wildcards.variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
+            f"{WORKDIR}/{wildcards.analysis_variant}/{wildcards.analysis_variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
             i=ITERATIONS
         )
     output:
-        fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta"
+        fastafile = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta"
     params:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
     resources:
@@ -328,7 +329,6 @@ rule generate_PSSM_and_constraints:
         """
 
 rule filterscan:
-    localrule: True
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
@@ -345,7 +345,6 @@ rule filterscan:
         cpus=1
     shell:
         """
-        mkdir -p {WORKDIR}/pross/{wildcards.sample}_resfiles_pross
         for res in $(seq 1 $(grep -v '^>' {input.fasta} | tr -d '\n' | wc -c)); do
             singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
                 -parser:protocol {params.protocol} \
@@ -399,7 +398,6 @@ rule pross_design:
         """
 
 rule pross_design_wt:
-    localrule: True
     input:
         resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
@@ -438,7 +436,7 @@ rule pross_design_wt:
 rule plot_frequencies:
     localrule: True
     input:
-        fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta",
+        fastafile = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta",
         wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
     output:
         figure = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.png",
