@@ -1,7 +1,7 @@
 #!/bin/sh
 
 #generate multi-sequence alignment file with hhblits 
-hhblits -i $1 -o $2 -hide_cons -d /home/iwe14/software/vaxpipe/input_files/UniRef30_2020_06/UniRef30_2020_06 -oa3m $3 # -d needs to be updated to the location of the uniref30 database on the system   
+hhblits -i $1 -o $2 -hide_cons -d /data/horse/ws/jari462g-vaxpipe/vaxpipe/input_files/UniRef30_2020_06/UniRef30_2020_06 -oa3m $3 # -d needs to be updated to the location of the uniref30 database on the system   
 #convert hhblits output to psiblast readable format
 awk '/^>/ {print; next} {gsub(/[a-z]/,""); print}' $3 > $4
 #generate .pssm with psiblast

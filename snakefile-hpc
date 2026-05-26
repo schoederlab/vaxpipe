@@ -276,25 +276,24 @@ rule interface_design:
         """
 
 rule get_fasta_from_pdbs:
-    localrule: True
     input:
         pdbs = lambda wildcards: expand(
-            f"{WORKDIR}/{wildcards.analysis_variant}/{wildcards.analysis_variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
+            f"{WORKDIR}/{wildcards.variant}/{wildcards.variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
             i=ITERATIONS
         )
     output:
-        fastafile = f"{WORKDIR}/{{analysis_variant}}/{{sample}}_{{variant}}.fasta"
+        fastafile = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta"
     params:
-        script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
+        script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py",
+        pdbdir = f"{WORKDIR}/{{variant}}"
     resources:
         cpus=1
     shell:
         """
-        python {params.script} -p {input.pdbs} -c A -o {output.fastafile}
+        python {params.script} -p {params.pdbdir} -c A -o {output.fastafile}
         """
 
 rule get_wt_fasta:
-    localrule: True
     input:
         pdb = f"{WORKDIR}/{{sample}}.pdb"
     output:
@@ -312,7 +311,6 @@ rule get_wt_fasta:
         """
 
 rule generate_PSSM_and_constraints:
-    localrule: True
     input:
         fastafile = f"{WORKDIR}/{{sample}}_WT.fasta",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
@@ -439,7 +437,6 @@ rule pross_design_wt:
         """
 
 rule plot_frequencies:
-    localrule: True
     input:
         fastafile = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta",
         wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
@@ -457,7 +454,6 @@ rule plot_frequencies:
         """
 
 rule get_mutation_list:
-    localrule: True
     input:
         csv = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.csv"
     output:
@@ -505,7 +501,6 @@ rule run_design_or_control:
         """
 
 rule plot_energy:
-    localrule: True
     input:
         control = lambda wildcards: expand(f"{WORKDIR}/{wildcards.variant}/{wildcards.sample}_{wildcards.variant}/control/{{m}}.sc", m=MUTATIONS),
         design = lambda wildcards: expand(f"{WORKDIR}/{wildcards.variant}/{wildcards.sample}_{wildcards.variant}/design/{{m}}.sc", m=MUTATIONS),

@@ -1,10 +1,10 @@
 # path to ROSETTA
-rosettadir: /home/iwe14/ML_Rosetta/rosetta.source.release-362/
+rosettadir: /data/horse/ws/jari462g-vaxpipe/vaxpipe
 
 # Path to working directory
-workdir: /home/iwe14/software/vaxpipe/test
+workdir: /data/horse/ws/jari462g-vaxpipe/vaxpipe/test
 
-inputdir: /home/iwe14/software/vaxpipe/input_files
+inputdir: /data/horse/ws/jari462g-vaxpipe/vaxpipe/input_files
 
 # List of samples
 samples: 3ft7

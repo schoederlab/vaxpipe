@@ -8,7 +8,7 @@ latency-wait: 10
 software-deployment-method: apptainer
 
 default-resources:
-  runtime: 600
+  runtime: 60000
   mem_mb: 4000
   cpus_per_task: 1
   slurm_partition: barnard
