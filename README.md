@@ -21,7 +21,7 @@ It streamlines the process of the prediction of possible amino acid mutations us
 - the BLAST+ software package: (https://blast.ncbi.nlm.nih.gov)
 - Rosetta compiled with pytorch and tensorflow libraries. A detailed information on how to compile Rosetta with pytorch and tensorflow support can be found [here](https://docs.rosettacommons.org/docs/latest/build_documentation/Building-Rosetta-with-TensorFlow-and-Torch)
 - ESM model (will be downloaded automatically)
-- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database [**must be located in the input_directory**] (`wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz`)
+- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database [**must be located in the input_directory**] (wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz)
 
 
 ### HPC Requirements
@@ -30,7 +30,7 @@ It streamlines the process of the prediction of possible amino acid mutations us
 - **singularity**
 - We provide a snakemake file that relies on a Rosetta docker/singularity image. The image is available on Docker Hub and can be pulled using singularity: `singularity pull docker://rosettacommons/rosetta:ml-387` (used for cluster execution).
 - ESM model [download](https://git.iwe-lab.de/moritzertelt/ML_graphs/-/tree/main/tensorflow_graphs/ESM/esm2_t33_650M_UR50D). Currently, the pipeline just accepts this ESM model. **The model needs to be downloaded and copied into the repository path.**
-- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database [**must be located in the input_directory**] (`wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz`)
+- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database [**must be located in the input_directory**] (wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz)
 
 ### Repository Structure
 
