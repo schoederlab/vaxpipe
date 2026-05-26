@@ -14,14 +14,13 @@ PROSS_TEMPS = config["pross_temps"]
 PROSS_TEMPS_STR = [str(t) for t in PROSS_TEMPS]
 
 #wildcards
-variants = ["esm","indes","pmpnn", "pross"]
+variants = ["esm","indes","pmpnn"]
 analysis_variants = ["esm","indes","pmpnn"]
 modes = ["design", "control"]
 ITERATIONS = [f"{i:04d}" for i in range(1, 201)]
 MUTATIONS = [f"{m}" for m in range(1, 21)]
 
 wildcard_constraints:
-    sample = r"[^/]+"
     i = r"\d{4}"
 
 rule all:
@@ -41,17 +40,17 @@ rule all:
         #interface design
         expand(f"{WORKDIR}/indes/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #pross
-        expand(f"{WORKDIR}/pross/{{sample}}.pssm", sample=SAMPLES),
-        expand(f"{WORKDIR}/pross/{{sample}}.cst", sample=SAMPLES),
-        expand(f"{WORKDIR}/pross/{{sample}}.hhr", sample=SAMPLES),
-        expand(f"{WORKDIR}/pross/{{sample}}.a3m", sample=SAMPLES),
-        expand(f"{WORKDIR}/pross/{{sample}}.psi", sample=SAMPLES),
-        expand(f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS),
-        expand(f"{WORKDIR}/pross/{{sample}}_pross_design_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
-        expand(f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
+        #expand(f"{WORKDIR}/pross/{{sample}}.pssm", sample=SAMPLES),
+        #expand(f"{WORKDIR}/pross/{{sample}}.cst", sample=SAMPLES),
+        #expand(f"{WORKDIR}/pross/{{sample}}.hhr", sample=SAMPLES),
+        #expand(f"{WORKDIR}/pross/{{sample}}.a3m", sample=SAMPLES),
+        #expand(f"{WORKDIR}/pross/{{sample}}.psi", sample=SAMPLES),
+        #expand(f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS),
+        #expand(f"{WORKDIR}/pross/{{sample}}_pross_design_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
+        #expand(f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
-        expand(f"{WORKDIR}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
+        expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
         expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.png", sample=SAMPLES, variant=analysis_variants),
         expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.csv", sample=SAMPLES, variant=analysis_variants),
         expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{m}}.txt", sample=SAMPLES, variant=analysis_variants, m=MUTATIONS),
@@ -78,6 +77,10 @@ rule clean_pdb:
         cpus=1
     shell:
         """
+        mkdir -p {WORKDIR}/esm
+        mkdir -p {WORKDIR}/pmpnn
+        mkdir -p {WORKDIR}/indes
+        mkdir -p {WORKDIR}/pross
         singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif score_jd2 \
         -renumber_pdb -ignore_unrecognized_res -s {input.pdb} \
         -out:pdb -out:suffix _clean -out:path:all {WORKDIR}
@@ -156,7 +159,8 @@ rule run_esm:
     params:
         protocol = f"{INPUTDIR}/esm/run_esm_and_save.xml"
     resources:
-        mem_mb=16000
+        mem_mb=16000,
+        cpus=1
     shell:
         """
         singularity run -B {WORKDIR} -B {WORKDIR}/../esm2_t33_650M_UR50D:/usr/local/database/protocol_data/tensorflow_graphs/tensorflow_graph_repo_submodule/ESM/esm2_t33_650M_UR50D \
@@ -190,7 +194,7 @@ rule esm_sampling:
             -parser:script_vars weights={input.weights} \
             -parser:script_vars resfile={params.resfile} \
             -out:pdb true \
-            -out:path:all {WORKDIR} \
+            -out:path:all {WORKDIR}/esm/ \
             -out:prefix esm_ \
             -out:suffix _{wildcards.i} \
             -beta \
@@ -239,7 +243,7 @@ rule pmpnn_sampling:
             -parser:script_vars weights={input.weights} \
             -parser:script_vars resfile={params.resfile} \
             -out:pdb true \
-            -out:path:all {WORKDIR} \
+            -out:path:all {WORKDIR}/pmpnn/ \
             -out:prefix pmpnn_ \
             -out:suffix _{wildcards.i} \
             -beta \
@@ -265,7 +269,7 @@ rule interface_design:
             -parser:script_vars sym={input.symm} \
             -beta \
             -out:pdb true \
-            -out:path:all {WORKDIR} \
+            -out:path:all {WORKDIR}/indes/ \
             -out:prefix indes_ \
             -out:suffix _{wildcards.i} \
             -overwrite > indes.log
@@ -279,7 +283,7 @@ rule get_fasta_from_pdbs:
             i=ITERATIONS
         )
     output:
-        fastafile = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta"
+        fastafile = f"{WORKDIR}/{{analysis_variant}}/{{sample}}_{{variant}}.fasta"
     params:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
     resources:
@@ -308,6 +312,7 @@ rule get_wt_fasta:
         """
 
 rule generate_PSSM_and_constraints:
+    localrule: True
     input:
         fastafile = f"{WORKDIR}/{{sample}}_WT.fasta",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"

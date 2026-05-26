@@ -21,7 +21,7 @@ It streamlines the process of the prediction of possible amino acid mutations us
 - the BLAST+ software package: (https://blast.ncbi.nlm.nih.gov)
 - Rosetta compiled with pytorch and tensorflow libraries. A detailed information on how to compile Rosetta with pytorch and tensorflow support can be found [here](https://docs.rosettacommons.org/docs/latest/build_documentation/Building-Rosetta-with-TensorFlow-and-Torch)
 - ESM model (will be downloaded automatically)
-- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database [**must be located in the input_directory**] (wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz)
+- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database [**must be located in the input_directory**] (`wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz`)
 
 
 ### HPC Requirements
@@ -30,7 +30,7 @@ It streamlines the process of the prediction of possible amino acid mutations us
 - **singularity**
 - We provide a snakemake file that relies on a Rosetta docker/singularity image. The image is available on Docker Hub and can be pulled using singularity: `singularity pull docker://rosettacommons/rosetta:ml-387` (used for cluster execution).
 - ESM model [download](https://git.iwe-lab.de/moritzertelt/ML_graphs/-/tree/main/tensorflow_graphs/ESM/esm2_t33_650M_UR50D). Currently, the pipeline just accepts this ESM model. **The model needs to be downloaded and copied into the repository path.**
-- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database [**must be located in the input_directory**] (wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz)
+- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database [**must be located in the input_directory**] (`wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz`)
 
 ### Repository Structure
 
@@ -40,6 +40,7 @@ vaxpipe/
 ├── snakefile-hpc # the main workflow optimized for the HPC cluster
 ├── config.yaml # containes path information
 ├── input_files/ # containes the necessary input .xml files to run the rosetta jobs
+├── profiles/slurm/ # containes the config.yaml file for cluster execution
 └── test/ # containes a test input pdb for validation/benchmarking
 
 ```
@@ -86,51 +87,6 @@ pip install biopython tqdm matplotlib
     ```
 3.  **Execute on HPC Cluster**: For cluster execution, use the HPC-optimized snakefile together with Snakemake’s executor interface (replacement for the deprecated `--cluster` flag). See the `hpc execution` section below for a detailed SLURM example:
     ```bash
-    snakemake --snakefile snakefile-hpc --cluster "sbatch ..."
+    snakemake --profile ./profiles/slurm
     ```
 For more in-depth information, please refer to the [Snakemake documentation](https://snakemake.readthedocs.io/en/stable/).
-
-## execution
-
-```
-snakemake --cores X --software-deployment-method conda  # executing vaxpipe using X CPU cores
-```
-
-### HPC execution
-
-For High-Performance Computing (HPC) environments, `vaxpipe` leverages Snakemake's cluster submission capabilities, typically via workload managers like SLURM. The `snakefile-hpc` is specifically optimized for this purpose.
-
-Here's a breakdown of the command-line options:
-
-```
-snakemake --jobs 500 \
- --cores 1000 \
- --local-cores 1 \
- --snakefile snakefile-hpc \
- --latency-wait 120 \
- --software-deployment-method apptainer \
- --executor cluster-generic \
- --cluster-generic-submit-cmd "sbatch --ntasks=1 \
-                         --cpus-per-task=1 \
-                         --job-name=vaxpipe_{rule}_{wildcards} \
-                         --mem=4G \
-                         --time=10:00:00 \
-                         --error=logs/{rule}_{wildcards}.err \
-                         --output=logs/{rule}_{wildcards}.out"
-```
-
-**Explanation of Options:**
-
--   `--jobs 500`: This flag tells Snakemake to submit up to 500 jobs to the cluster simultaneously. This is the maximum number of jobs that Snakemake will attempt to run in parallel on the HPC system.
--   `--cores 1000`: This specifies the total number of CPU cores available across all cluster jobs. Snakemake uses this to manage resource allocation, ensuring that the total core requests from submitted jobs do not exceed this limit. Note that individual jobs will request resources as defined in the `--cluster` command.
--   `--local-cores 1`: This reserves 1 CPU core for local tasks (e.g., Snakemake's internal processing or very small, quick jobs that are not submitted to the cluster). This ensures Snakemake itself has sufficient resources to manage the workflow.
--   `--snakefile snakefile-hpc`: This explicitly tells Snakemake to use the `snakefile-hpc` workflow definition, which is tailored for cluster execution and may include specific resource requests or directives for job submission.
--   `--latency-wait 120`: This sets a grace period (in seconds) that Snakemake waits for output files to appear after a job completes. This is particularly useful in networked file systems where there might be a delay in file synchronization, preventing Snakemake from prematurely marking a job as failed if its output isn't immediately visible.
-    *   `--ntasks=1`: Requests 1 task per job.
-    *   `--cpus-per-task=1`: Requests 1 CPU core per task. Thus, each job will run on a single CPU core.
-    *   `--job-name=vaxpipe_{rule}_{wildcards}`: Assigns a dynamic name to each job, incorporating the Snakemake rule name and any wildcards, which helps in tracking jobs on the cluster.
-    *   `--time=10:00:00`: Sets a time limit of 10 hours for each job's execution.
-    *   `--error=logs/{rule}_{wildcards}.err`: Redirects standard error output to a specific error log file, dynamically named based on the rule and wildcards.
-    *   `--output=logs/{rule}_{wildcards}.out`: Redirects standard output to a specific output log file, also dynamically named.
-
-Users should adjust the values for `--jobs`, `--cores`, and particularly the `--executor-arg` submission template (e.g., memory, time, cpus-per-task, job queues) to match their specific HPC environment and the requirements of their protein design tasks.

@@ -1,0 +1,18 @@
+executor: slurm
+
+jobs: 200
+local-cores: 1
+
+snakefile: snakefile-hpc
+latency-wait: 10
+software-deployment-method: apptainer
+
+default-resources:
+  runtime: 600
+  mem_mb: 4000
+  cpus_per_task: 1
+  slurm_partition: barnard
+  account: p_mlvaccine
+  slurm_job_name: "vaxpipe_{rule}"
+  slurm_output: "./{rule}_{wildcards}.out"
+  slurm_error: "./{rule}_{wildcards}.err"
