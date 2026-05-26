@@ -42,11 +42,12 @@ vaxpipe/
 ├── input_files/ # containes the necessary input .xml files to run the rosetta jobs
 ├── profiles/slurm/ # containes the config.yaml file for cluster execution
 └── test/ # containes a test input pdb for validation/benchmarking
-
 ```
 ---
 
 ### Installation
+
+#### Installation using conda
 
 generate snakemake conda environment
 
@@ -55,7 +56,7 @@ conda create -c conda-forge -c bioconda -n snakemake snakemake
 conda activate snakemake
 conda install bioconda::blast
 pip install snakemake-executor-plugin-slurm
-pip install biopython tqdm matplotlib
+pip install biopython tqdm matplotlib pandas
 
 ```
 
