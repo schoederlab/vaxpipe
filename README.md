@@ -8,36 +8,29 @@ It streamlines the process of the prediction of possible amino acid mutations us
 ### Operational Guidelines
 
 - **Input PDB Structure**: The pipeline expects an input PDB file (e.g., `test/3ft7.pdb`) which represents a symmetric protein complex. **The file has to be placed inside the `workdir` configured in `config.yaml`**, and its basename (without `.pdb`) is the `samples` entry.
-- **Rosetta Installation**: A functional Rosetta installation compiled with PyTorch and TensorFlow libraries is required for the deep learning-based predictions. For cluster usage, a singularity image can be downloaded from Docker Hub (see details below). Ensure that the `ROSETTA` path is correctly specified in the `config.yaml`.
-- **Snakemake**: The pipeline is orchestrated using Snakemake. While users should ideally be familiar with Snakemake, this documentation aims to provide sufficient guidance for basic local and HPC execution. Detailed instructions are provided within the relevant sections.
-- **Configuration**: The `config.yaml` file must be updated with appropriate paths to Rosetta binaries, the name of the pdb file, and input/output directories. This file is critical for the pipeline's correct operation. See [Configuration](#configuration) for every key.
+- **Rosetta**: All Rosetta steps run inside a singularity image, so no local Rosetta build is needed. Point `rosettadir` in `config.yaml` at the directory holding `rosetta_ml.sif`.
+- **Snakemake**: The pipeline is orchestrated using Snakemake. There is a single `snakefile` for both local and cluster execution — they differ only in how Snakemake is invoked. While users should ideally be familiar with Snakemake, this documentation aims to provide sufficient guidance for basic local and HPC execution.
+- **Configuration**: The `config.yaml` file must be updated with appropriate paths, the name of the pdb file, and input/output directories. This file is critical for the pipeline's correct operation. See [Configuration](#configuration) for every key.
 - **Output Files**: Intermediate and final output files will be generated in a structured directory format, as defined in the `snakefile`. If the pipeline run successfully, several .png files will be present in the output directory, which represent both frequency and energy evaluation of tested mutations.
-- **Resource Management**: For HPC execution, cluster submission parameters (partition, account, runtime, memory) are set in `profiles/slurm/config.yaml`; per-rule overrides live in the `resources:` blocks of `snakefile-hpc`.
+- **Resource Management**: For HPC execution, cluster submission parameters (partition, account, runtime, memory) are set in `profiles/slurm/config.yaml`; per-rule overrides live in the `resources:` blocks of the `snakefile`.
 
-### Local Execution Requirements
+### Requirements
+
+The same requirements apply to local and cluster runs, because every Rosetta call goes
+through the singularity image either way.
 
 - `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
-- [Snakemake ≥ 9.0](https://snakemake.readthedocs.io/en/v9.3.0/)
-- the BLAST+ software package: (https://blast.ncbi.nlm.nih.gov)
-- Rosetta compiled with pytorch and tensorflow libraries. A detailed information on how to compile Rosetta with pytorch and tensorflow support can be found [here](https://docs.rosettacommons.org/docs/latest/build_documentation/Building-Rosetta-with-TensorFlow-and-Torch)
-- ESM model (will be downloaded automatically)
-- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database (`wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz`). Point `uniref_db` in `config.yaml` at the database prefix.
-
-
-### HPC Requirements
-- `Python ≥ 3.7, biopython, tqdm, matplotlib, pandas`
-- Snakemake ≥ 9.0
+- [Snakemake ≥ 9.0](https://snakemake.readthedocs.io/en/v9.3.0/), plus `snakemake-executor-plugin-slurm` for cluster runs
 - **singularity**
-- We provide a snakemake file that relies on a Rosetta docker/singularity image. The image is available on Docker Hub and can be pulled using singularity: `singularity pull docker://rosettacommons/rosetta:ml-387` (used for cluster execution). `snakefile-hpc` expects it as `rosetta_ml.sif` inside `rosettadir`.
-- ESM model [download](https://git.iwe-lab.de/moritzertelt/ML_graphs/-/tree/main/tensorflow_graphs/ESM/esm2_t33_650M_UR50D). Currently, the pipeline just accepts this ESM model. **The model needs to be downloaded and copied into the repository path.**
-- for the PROSS protocol, PSSMs are generated, which needs the `UniRef30_2020_06` database (`wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz`). Point `uniref_db` in `config.yaml` at the database prefix.
+- The Rosetta image, pulled from Docker Hub with `singularity pull docker://rosettacommons/rosetta:ml-387` and placed as `rosetta_ml.sif` inside `rosettadir`.
+- ESM model [download](https://git.iwe-lab.de/moritzertelt/ML_graphs/-/tree/main/tensorflow_graphs/ESM/esm2_t33_650M_UR50D). Currently, the pipeline just accepts this ESM model. **The model needs to be downloaded and copied into the repository path**, where the `run_esm` rule bind-mounts it into the container.
+- Only needed for the PROSS branch (see [PROSS](#pross)): the BLAST+ package (https://blast.ncbi.nlm.nih.gov) and `hhblits`, which run on the host rather than in the container, plus the `UniRef30_2020_06` database (`wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz`). Point `uniref_db` in `config.yaml` at the database prefix.
 
 ### Repository Structure
 
 ```
 vaxpipe/
-├── snakefile # the main workflow
-├── snakefile-hpc # the main workflow optimized for the HPC cluster
+├── snakefile # the workflow, used for both local and cluster runs
 ├── config.yaml # containes path information
 ├── input_files/ # containes the necessary input .xml files to run the rosetta jobs
 ├── profiles/slurm/ # containes the config.yaml file for cluster execution
@@ -51,17 +44,22 @@ All paths live in `config.yaml`:
 
 | key | meaning |
 | --- | --- |
-| `rosettadir` | Rosetta root. Locally the binaries are expected under `<rosettadir>/main/source/bin/`, on the cluster the container is expected at `<rosettadir>/rosetta_ml.sif`. |
+| `rosettadir` | Directory holding the Rosetta container, which is expected at `<rosettadir>/rosetta_ml.sif`. |
 | `workdir` | Working directory. The input PDB has to live here; all results are written here. |
 | `inputdir` | This repository's `input_files/` directory (RosettaScripts XMLs and helper scripts). |
 | `uniref_db` | Prefix of the hhsuite `UniRef30_2020_06` database, used by `hhblits` to build the PROSS PSSM. |
 | `samples` | Basename of the input PDB (`3ft7` for `3ft7.pdb`). |
+| `iterations` | Designs generated per branch (esm, pmpnn, indes). |
+| `mutations` | Most frequent mutations carried into the design/control validation. |
 | `pross_temps` | PROSS delta-score thresholds. These must match `delta_filter_thresholds` of the `FilterScan` filter in `input_files/pross/filter/filterscan.xml`, because that filter derives the resfile names from them. |
 
-The number of design iterations and the number of mutations that are carried forward
-into validation are set at the top of the snakefiles (`ITERATIONS` and `MUTATIONS`).
-The local `snakefile` uses small values (5 each) so a run finishes on a workstation;
-`snakefile-hpc` uses 200 iterations and 20 mutations.
+`iterations` and `mutations` are what a local trial run and a production run on the
+cluster mainly differ in. The committed values (200 and 20) are meant for the cluster;
+for a quick local check override them on the command line rather than editing the file:
+
+```bash
+snakemake --cores 4 --config iterations=5 mutations=5
+```
 
 ---
 
@@ -102,11 +100,11 @@ pip install biopython tqdm matplotlib pandas
     # or a shorter version
     snakemake -n
     ```
-2.  **Execute Locally**: Run the pipeline on your local machine, utilizing `X` CPU cores and opting into Conda-based software deployment (replacement for the deprecated `--use-conda` flag):
+2.  **Execute Locally**: Run the pipeline on your local machine, utilizing `X` CPU cores. Singularity still has to be available, since every Rosetta step runs in the container:
     ```bash
-    snakemake --cores X --software-deployment-method conda
+    snakemake --cores X
     ```
-3.  **Execute on HPC Cluster**: For cluster execution, use the HPC-optimized snakefile together with Snakemake’s executor interface (replacement for the deprecated `--cluster` flag). See the `hpc execution` section below for a detailed SLURM example:
+3.  **Execute on HPC Cluster**: For cluster execution, use the SLURM profile, which submits each job through Snakemake’s executor interface (replacement for the deprecated `--cluster` flag):
     ```bash
     snakemake --profile ./profiles/slurm
     ```
@@ -132,6 +130,18 @@ For more in-depth information, please refer to the [Snakemake documentation](htt
 Rosetta names its output structures `<prefix><input>_<suffix>_00XX.pdb`, so the rule
 outputs carry those `_0001` / `_00XX` infixes. When changing `-out:prefix`,
 `-out:suffix` or `-nstruct`, the `output:` patterns have to be adjusted to match.
+
+### PROSS
+
+The PROSS rules (`generate_PSSM_and_constraints`, `filterscan`, `pross_design`,
+`pross_design_wt`) are implemented but their targets are commented out in `rule all`,
+so they do not run by default. They are the only part of the pipeline that needs
+`hhblits`, BLAST+ and the UniRef30 database on the host. To enable them, uncomment the
+`#pross` block in `rule all` and set `uniref_db` in `config.yaml`.
+
+Note that `filterscan` runs one Rosetta job per residue and writes the resfiles for all
+`pross_temps` thresholds in that single pass, which is why it is one Snakemake job
+rather than one per threshold.
 
 ### Output Layout
 
