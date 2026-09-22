@@ -24,7 +24,7 @@ through the singularity image either way.
 - **singularity**
 - The Rosetta image, pulled from Docker Hub with `singularity pull docker://rosettacommons/rosetta:ml-387` and placed as `rosetta_ml.sif` inside `rosettadir`.
 - ESM model [download](https://git.iwe-lab.de/moritzertelt/ML_graphs/-/tree/main/tensorflow_graphs/ESM/esm2_t33_650M_UR50D). Currently, the pipeline just accepts this ESM model. **The model needs to be downloaded and copied into the repository path**, where the `run_esm` rule bind-mounts it into the container.
-- Only needed for the PROSS branch (see [PROSS](#pross)): the BLAST+ package (https://blast.ncbi.nlm.nih.gov) and `hhblits`, which run on the host rather than in the container, plus the `UniRef30_2020_06` database (`wget http://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz`). Point `uniref_db` in `config.yaml` at the database prefix.
+- Only needed for the PROSS branch (see [PROSS](#pross)): the BLAST+ package (https://blast.ncbi.nlm.nih.gov) and `hhblits`, which run on the host rather than in the container, plus the `UniRef30_2020_06` database. See [PROSS dependencies](#pross-dependencies) for the install and download commands.
 
 ### Repository Structure
 
@@ -72,11 +72,50 @@ generate snakemake conda environment
 ```
 conda create -c conda-forge -c bioconda -n snakemake snakemake
 conda activate snakemake
-conda install bioconda::blast
 pip install snakemake-executor-plugin-slurm
 pip install biopython tqdm matplotlib pandas
 
 ```
+
+#### ESM model
+
+The `run_esm` rule bind-mounts the model from the directory *above* `workdir`, so the
+model has to end up at `<workdir>/../esm2_t33_650M_UR50D`. With the committed
+`config.yaml` (`workdir: <repo>/test`) that is the repository root:
+
+```
+<repo>/esm2_t33_650M_UR50D/
+├── saved_model.pb
+├── keras_metadata.pb
+└── variables/
+```
+
+A symlink works as well as a copy, and `.gitignore` already excludes the directory.
+
+#### PROSS dependencies
+
+Only needed if you enable the `#pross` block in `rule all` (see [PROSS](#pross)).
+`hhblits` and `psiblast` run on the *host*, not in the Rosetta container, so they go
+into the same conda environment:
+
+```
+conda activate snakemake
+conda install -c conda-forge -c bioconda blast hhsuite
+```
+
+Then fetch the UniRef30 database (~50 GB compressed, ~86 GB unpacked) and point
+`uniref_db` at the file prefix, not at the directory:
+
+```
+mkdir -p input_files/UniRef30_2020_06 && cd input_files/UniRef30_2020_06
+wget -c https://wwwuser.gwdg.de/~compbiol/uniclust/2020_06/UniRef30_2020_06_hhsuite.tar.gz
+tar -xzf UniRef30_2020_06_hhsuite.tar.gz
+rm UniRef30_2020_06_hhsuite.tar.gz
+```
+
+This unpacks `UniRef30_2020_06_*.ffdata` / `*.ffindex` files, which `hhblits -d`
+addresses through their shared prefix, hence the doubled name in
+`uniref_db: .../UniRef30_2020_06/UniRef30_2020_06`.
 
 **change the `config.yaml` file with the corresponding paths**
 

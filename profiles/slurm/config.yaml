@@ -7,12 +7,12 @@ snakefile: snakefile
 latency-wait: 10
 software-deployment-method: apptainer
 
+# runtime is in minutes and must stay under the QOS wall-clock limit (7 days here),
+# otherwise sbatch rejects every job.
 default-resources:
-  runtime: 60000
+  runtime: 1440
   mem_mb: 4000
   cpus_per_task: 1
   slurm_partition: barnard
-  account: p_mlvaccine
+  slurm_account: p_mlvaccine
   slurm_job_name: "vaxpipe_{rule}"
-  slurm_output: "./{rule}_{wildcards}.out"
-  slurm_error: "./{rule}_{wildcards}.err"

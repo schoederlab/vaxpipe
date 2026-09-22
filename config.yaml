@@ -1,13 +1,13 @@
 # path to ROSETTA
-rosettadir: /data/horse/ws/jari462g-vaxpipe/vaxpipe
+rosettadir: /data/horse/ws/jari462g-vaxpipe2/rosetta_dir
 
 # Path to working directory
-workdir: /data/horse/ws/jari462g-vaxpipe/vaxpipe/test
+workdir: /data/horse/ws/jari462g-vaxpipe2/vaxpipe/test
 
-inputdir: /data/horse/ws/jari462g-vaxpipe/vaxpipe/input_files
+inputdir: /data/horse/ws/jari462g-vaxpipe2/vaxpipe/input_files
 
 # Path prefix of the hhsuite UniRef30 database, used to build the PROSS PSSM
-uniref_db: /data/horse/ws/jari462g-vaxpipe/vaxpipe/input_files/UniRef30_2020_06/UniRef30_2020_06
+uniref_db: /data/horse/ws/jari462g-vaxpipe2/vaxpipe/input_files/UniRef30_2020_06/UniRef30_2020_06
 
 # List of samples
 samples: 3ft7
