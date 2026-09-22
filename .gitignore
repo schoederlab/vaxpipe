@@ -1,1 +1,4 @@
 esm2_t33_650M_UR50D/
+.snakemake/
+__pycache__/
+*.pyc

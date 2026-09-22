@@ -1,7 +1,16 @@
 #!/bin/sh
+# usage: generate_pssm.file <fasta> <hhr> <a3m> <psi> <hhr_log> <pssm> <uniref_db_prefix>
+# The database prefix is passed in from config.yaml (key: uniref_db).
 
-#generate multi-sequence alignment file with hhblits 
-hhblits -i $1 -o $2 -hide_cons -d /data/horse/ws/jari462g-vaxpipe/vaxpipe/input_files/UniRef30_2020_06/UniRef30_2020_06 -oa3m $3 # -d needs to be updated to the location of the uniref30 database on the system   
+if [ $# -lt 7 ]; then
+	echo "usage: $0 <fasta> <hhr> <a3m> <psi> <hhr_log> <pssm> <uniref_db_prefix>" >&2
+	exit 1
+fi
+
+db=$7
+
+#generate multi-sequence alignment file with hhblits
+hhblits -i $1 -o $2 -hide_cons -d "$db" -oa3m $3
 #convert hhblits output to psiblast readable format
 awk '/^>/ {print; next} {gsub(/[a-z]/,""); print}' $3 > $4
 #generate .pssm with psiblast

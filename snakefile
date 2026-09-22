@@ -1,4 +1,3 @@
-#!/bin/python
 # Snakefile
 
 import os
@@ -11,18 +10,24 @@ ROSETTA_DIR = config["rosettadir"]
 INPUTDIR = config["inputdir"]
 WORKDIR = config["workdir"]
 SAMPLES = config["samples"]
+UNIREF_DB = config["uniref_db"]
 ITERATIONS = [f"{i:04d}" for i in range(1, 6)]
 MUTATIONS = [f"{m}" for m in range(1, 6)]
 PROSS_TEMPS = config["pross_temps"]
-PROSS_TEMPS_STR = [str(t) for t in PROSS_TEMPS]
 
 #wildcards
-variants = ["pmpnn","indes","esm","pross"]
-analysis_variants = ["pmpnn","indes","esm"]
+analysis_variants = ["esm","indes","pmpnn"]
 modes = ["design", "control"]
 
+# Wildcards must not swallow path separators, otherwise e.g. {variant}/{sample}_{variant}
+# can be matched in several ways and rules become ambiguous.
 wildcard_constraints:
-    i = r"\d{4}"
+    i = r"\d{4}",
+    m = r"\d+",
+    sample = r"[^/]+",
+    variant = r"[^/]+",
+    mode = r"design|control",
+    t = r"[^/]+"
 
 rule all:
     input:
@@ -40,7 +45,6 @@ rule all:
         expand(f"{WORKDIR}/pmpnn/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #interface design
         expand(f"{WORKDIR}/indes/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
-        #expand(f"{WORKDIR}/{{variant}}_{{sample}}_{{i}}.log", variant=variants, sample=SAMPLES, i=ITERATIONS),
         #pross
         expand(f"{WORKDIR}/pross/{{sample}}.pssm", sample=SAMPLES),
         expand(f"{WORKDIR}/pross/{{sample}}.cst", sample=SAMPLES),
@@ -61,15 +65,14 @@ rule all:
         #plotting
         expand(f"{WORKDIR}/{{variant}}/{{sample}}_energydifference_{{variant}}.png", sample=SAMPLES, variant=analysis_variants)
 
-ruleorder: clean_pdb > make_symmdef_file1 > rename_file > relax > make_symmdef_file2 > get_wt_fasta > run_esm > run_pmpnn > esm_sampling > pmpnn_sampling > interface_design \
-  > get_fasta_from_pdbs > plot_frequencies > get_mutation_list > run_design_or_control > plot_energy
-
 rule clean_pdb:
     localrule: True
     input:
         pdb = f"{WORKDIR}/{{sample}}.pdb"
     output:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
+    log:
+        f"{WORKDIR}/logs/clean_pdb_{{sample}}.log"
     shell:
         """
         mkdir -p {WORKDIR}/esm
@@ -78,22 +81,26 @@ rule clean_pdb:
         mkdir -p {WORKDIR}/pross
         {ROSETTA_DIR}/main/source/bin/score_jd2.pytorchtensorflow.linuxgccrelease \
         -renumber_pdb -ignore_unrecognized_res -s {input.pdb} \
-        -out:pdb -out:suffix _clean -out:path:all {WORKDIR}
+        -out:pdb -out:suffix _clean -out:path:all {WORKDIR} > {log} 2>&1
         """
 
 rule make_symmdef_file1:
     localrule: True
     input:
-        pdb = lambda wc: f"{WORKDIR}/{wc.sample}_clean_0001.pdb"
+        pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
     output:
         symm = f"{WORKDIR}/{{sample}}.symm",
         pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
+    log:
+        f"{WORKDIR}/logs/make_symmdef_file1_{{sample}}.log"
     shell:
         """
-        {INPUTDIR}/symmetry/make_symmdef_file.pl \
-        -p {input.pdb} -a A -i B > {output.symm}
+        perl {INPUTDIR}/symmetry/make_symmdef_file.pl \
+        -p {input.pdb} -a A -i B 2> {log} > {output.symm}
         """
 
+# cp rather than mv: _clean_0001_INPUT.pdb is a declared output of make_symmdef_file1,
+# and moving it leaves that rule's outputs incomplete on disk.
 rule rename_file:
     localrule: True
     input:
@@ -102,7 +109,7 @@ rule rename_file:
         pdbs = f"{WORKDIR}/{{sample}}_new.pdb"
     shell:
         """
-        mv {input.pdb} {output.pdbs}
+        cp {input.pdb} {output.pdbs}
         """
 
 rule relax:
@@ -112,6 +119,8 @@ rule relax:
         symm = f"{WORKDIR}/{{sample}}.symm"
     output:
         relaxed_pdb = f"{WORKDIR}/relax_{{sample}}_new_0001.pdb"
+    log:
+        f"{WORKDIR}/logs/relax_{{sample}}.log"
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/relax.pytorchtensorflow.linuxgccrelease \
@@ -122,7 +131,7 @@ rule relax:
         -multiple_processes_writing_to_one_directory \
         -out:prefix relax_ \
         -out:path:all {WORKDIR} \
-        -symmetry_definition {input.symm}
+        -symmetry_definition {input.symm} > {log} 2>&1
         """
 
 rule make_symmdef_file2:
@@ -132,10 +141,12 @@ rule make_symmdef_file2:
     output:
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
+    log:
+        f"{WORKDIR}/logs/make_symmdef_file2_{{sample}}.log"
     shell:
         """
-        {INPUTDIR}/symmetry/make_symmdef_file.pl \
-        -p {input.pdb} -a A -i B > {output.symm}
+        perl {INPUTDIR}/symmetry/make_symmdef_file.pl \
+        -p {input.pdb} -a A -i B 2> {log} > {output.symm}
         """
 
 rule run_esm:
@@ -145,6 +156,8 @@ rule run_esm:
         weights = f"{WORKDIR}/esm/{{sample}}_esm_probs.weights"
     params:
         protocol = f"{INPUTDIR}/esm/run_esm_and_save.xml"
+    log:
+        f"{WORKDIR}/logs/run_esm_{{sample}}.log"
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -154,7 +167,7 @@ rule run_esm:
         -beta \
         -auto_download \
         -out:path:all {WORKDIR}/esm \
-        -overwrite
+        -overwrite > {log} 2>&1
         """
 
 rule esm_sampling:
@@ -167,6 +180,8 @@ rule esm_sampling:
     params:
         protocol = f"{INPUTDIR}/esm/sample_mutations.xml",
         resfile = f"{INPUTDIR}/esm/resfile.resfile",
+    log:
+        f"{WORKDIR}/logs/esm_sampling_{{sample}}_{{i}}.log"
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -176,12 +191,11 @@ rule esm_sampling:
             -parser:script_vars weights={input.weights} \
             -parser:script_vars resfile={params.resfile} \
             -out:pdb true \
-            -out:path:all {WORKDIR} \
             -out:prefix esm_ \
             -out:suffix _{wildcards.i} \
             -beta \
             -out:path:all {WORKDIR}/esm \
-            -overwrite > {WORKDIR}/esm/esm.log
+            -overwrite > {log} 2>&1
         """
 
 rule run_pmpnn:
@@ -192,6 +206,8 @@ rule run_pmpnn:
         weights = f"{WORKDIR}/pmpnn/{{sample}}_mpnn_probs.weights"
     params:
         protocol = f"{INPUTDIR}/pmpnn/run_mpnn_and_save.xml"
+    log:
+        f"{WORKDIR}/logs/run_pmpnn_{{sample}}.log"
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -200,7 +216,7 @@ rule run_pmpnn:
         -s {input.pdb} \
         -beta \
         -out:path:all {WORKDIR}/pmpnn \
-        -overwrite
+        -overwrite > {log} 2>&1
         """
 
 rule pmpnn_sampling:
@@ -214,6 +230,8 @@ rule pmpnn_sampling:
     params:
         protocol = f"{INPUTDIR}/pmpnn/sample_mutations.xml",
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile",
+    log:
+        f"{WORKDIR}/logs/pmpnn_sampling_{{sample}}_{{i}}.log"
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -223,12 +241,11 @@ rule pmpnn_sampling:
             -parser:script_vars weights={input.weights} \
             -parser:script_vars resfile={params.resfile} \
             -out:pdb true \
-            -out:path:all {WORKDIR} \
             -out:prefix pmpnn_ \
             -out:suffix _{wildcards.i} \
             -beta \
             -out:path:all {WORKDIR}/pmpnn \
-            -overwrite > {WORKDIR}/pmpnn/pmpnn.log
+            -overwrite > {log} 2>&1
         """
 
 rule interface_design:
@@ -240,6 +257,8 @@ rule interface_design:
         pdb = f"{WORKDIR}/indes/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb"
     params:
         protocol = f"{INPUTDIR}/interface-design/sym_design.xml",
+    log:
+        f"{WORKDIR}/logs/interface_design_{{sample}}_{{i}}.log"
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -248,18 +267,17 @@ rule interface_design:
             -parser:script_vars sym={input.symm} \
             -beta \
             -out:pdb true \
-            -out:path:all {WORKDIR}/indes \
             -out:prefix indes_ \
             -out:suffix _{wildcards.i} \
             -out:path:all {WORKDIR}/indes \
-            -overwrite > {WORKDIR}/indes/indes.log
+            -overwrite > {log} 2>&1
         """
 
 rule get_fasta_from_pdbs:
     localrule: True
     input:
         pdbs = lambda wildcards: expand(
-            f"{WORKDIR}/{wildcards.analysis_variant}/{wildcards.analysis_variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
+            f"{WORKDIR}/{wildcards.variant}/{wildcards.variant}_relax_{wildcards.sample}_new_0001_INPUT_{{i}}_0001.pdb",
             i=ITERATIONS
         )
     output:
@@ -271,10 +289,12 @@ rule get_fasta_from_pdbs:
         python {params.script} -p {input.pdbs} -c A -o {output.fastafile}
         """
 
+# The reference sequence has to come from the same structure the designs are built
+# from, otherwise cleaning/renumbering shifts every reported mutation position.
 rule get_wt_fasta:
     localrule: True
     input:
-        pdb = f"{WORKDIR}/{{sample}}.pdb"
+        pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
         fastafile = f"{WORKDIR}/{{sample}}_WT.fasta"
     params:
@@ -300,11 +320,15 @@ rule generate_PSSM_and_constraints:
         hhr_log = f"{WORKDIR}/pross/{{sample}}_hhr.log"
     shell:
         """
+        mkdir -p {WORKDIR}/pross
         bash {INPUTDIR}/pross/pssm/generate_pssm.file \
-        {input.fastafile} {output.hhr} {output.a3m} {output.psi} {output.hhr_log} {output.pssm}
+        {input.fastafile} {output.hhr} {output.a3m} {output.psi} {output.hhr_log} {output.pssm} {UNIREF_DB}
         bash {INPUTDIR}/pross/filter/make_cst.sh {input.pdb} > {output.cst}
         """
 
+# One FilterScan pass writes the resfiles for *all* delta thresholds at once, so this
+# rule has to declare all of them. Parameterising it by {t} instead would run the
+# whole per-residue scan once per temperature, with every job writing the same files.
 rule filterscan:
     localrule: True
     input:
@@ -314,13 +338,22 @@ rule filterscan:
         pssm = f"{WORKDIR}/pross/{{sample}}.pssm",
         fasta = f"{WORKDIR}/{{sample}}_WT.fasta"
     output:
-        resfiles_path = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
+        resfiles = expand(
+            WORKDIR + "/pross/{sample}_resfiles_pross/designable_aa_resfile.{t}",
+            t=PROSS_TEMPS,
+            allow_missing=True
+        )
     params:
         protocol = f"{INPUTDIR}/pross/filter/filterscan.xml",
         path = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile",
+    log:
+        f"{WORKDIR}/logs/filterscan_{{sample}}.log"
     shell:
         """
-        for res in $(seq 1 $(grep -v '^>' {input.fasta} | tr -d '\n' | wc -c)); do
+        mkdir -p $(dirname {params.path})
+        : > {log}
+        nres=$(grep -v '^>' {input.fasta} | tr -d '\n' | wc -c)
+        for res in $(seq 1 $nres); do
             {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
                 -parser:protocol {params.protocol} \
                 -s {input.pdb} \
@@ -333,7 +366,7 @@ rule filterscan:
                 -parser:script_vars current_res=$res \
                 -out:path:all {WORKDIR}/pross \
                 -beta \
-                -overwrite > {WORKDIR}/pross/filterscan.log
+                -overwrite >> {log} 2>&1
         done
         """
 
@@ -348,6 +381,8 @@ rule pross_design:
         sc = f"{WORKDIR}/pross/{{sample}}_pross_design_{{t}}.sc"
     params:
         protocol = f"{INPUTDIR}/pross/design/design.xml",
+    log:
+        f"{WORKDIR}/logs/pross_design_{{sample}}_{{t}}.log"
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -359,14 +394,14 @@ rule pross_design:
             -parser:script_vars cst_value=0.4 \
             -parser:script_vars pssm_full_path={input.pssm} \
             -parser:script_vars in_resfile={input.resfile} \
-            -overwrite > {WORKDIR}/pross/pross_design.log \
+            -overwrite \
             -ignore_unrecognized_res \
             -use_input_sc \
             -use_occurrence_data \
             -out:file:scorefile {output.sc} \
             -out:path:all {WORKDIR}/pross \
             -out:prefix pross_design_{wildcards.t} \
-            -beta \
+            -beta > {log} 2>&1
         """
 
 rule pross_design_wt:
@@ -381,6 +416,8 @@ rule pross_design_wt:
         sc = f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc"
     params:
         protocol = f"{INPUTDIR}/pross/design/design_WT.xml",
+    log:
+        f"{WORKDIR}/logs/pross_design_wt_{{sample}}_{{t}}.log"
     shell:
         """
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
@@ -392,21 +429,20 @@ rule pross_design_wt:
             -parser:script_vars cst_value=0.4 \
             -parser:script_vars pssm_full_path={input.pssm} \
             -parser:script_vars in_resfile={input.resfile} \
-            -overwrite > {WORKDIR}/pross/pross_wt.log \
-            -out:path:all {WORKDIR}/pross \
+            -overwrite \
             -ignore_unrecognized_res \
             -use_input_sc \
             -use_occurrence_data \
             -out:file:scorefile {output.sc} \
             -out:prefix pross_wt_{wildcards.t} \
             -out:path:all {WORKDIR}/pross \
-            -beta
+            -beta > {log} 2>&1
         """
 
 rule plot_frequencies:
     localrule: True
     input:
-        fastafile = f"{WORKDIR}/{{sample}}_{{variant}}.fasta",
+        fastafile = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta",
         wtfile = f"{WORKDIR}/{{sample}}_WT.fasta"
     output:
         figure = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}_frequency.png",
@@ -430,7 +466,7 @@ rule get_mutation_list:
     shell:
         """
         mkdir -p $(dirname {output.out})
-        python {params.script} -i {input.csv} -o {output.out} \
+        python {params.script} -i {input.csv} -o {output.out}
         """
 
 rule run_design_or_control:
@@ -443,25 +479,31 @@ rule run_design_or_control:
         sc =  f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}/{{m}}.sc"
     params:
         xml = f"{INPUTDIR}/validate/design.v02.xml",
-        outdir = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}"
+        outdir = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}",
+        # Every job reads the same input structure, so Rosetta names all nstruct decoys
+        # relax_{sample}_new_0001_INPUT_00XX.pdb. Without a private -out:path:pdb the
+        # concurrent jobs of all mutations overwrite each other's structures.
+        pdbdir = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}/{{m}}_decoys"
+    log:
+        f"{WORKDIR}/logs/run_design_or_control_{{variant}}_{{sample}}_{{mode}}_{{m}}.log"
     shell:
         """
         MUTATION_LINE=$(cat {input.txt})
-        
+
         mutpos=$(echo $MUTATION_LINE | cut -d'_' -f1)
         mutaa=$(echo $MUTATION_LINE | cut -d'_' -f2)
 
-        mkdir -p {params.outdir}
+        mkdir -p {params.outdir} {params.pdbdir}
         {ROSETTA_DIR}/main/source/bin/rosetta_scripts.pytorchtensorflow.linuxgccrelease \
             -parser:protocol {params.xml} \
             -parser:script_vars mutpos=$mutpos mut_aa=$mutaa protocol={wildcards.mode} symfile={input.symfile} \
             -in:file:s {input.pdb} \
             -corrections:beta_nov16 \
             -out:file:scorefile {output.sc} \
-            -out:path:all {WORKDIR}/{wildcards.variant}/ \
+            -out:path:pdb {params.pdbdir} \
             -overwrite \
             -nstruct 20 \
-            -beta
+            -beta > {log} 2>&1
         """
 
 rule plot_energy:

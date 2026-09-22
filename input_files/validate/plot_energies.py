@@ -24,6 +24,14 @@ def numeric_key(fname):
 files1 = sorted(glob.glob(f'{args.input1}/*.sc'), key=numeric_key)
 files2 = sorted(glob.glob(f'{args.input2}/*.sc'), key=numeric_key)
 
+# design and control score files are compared pairwise, so they have to line up
+if [numeric_key(f) for f in files1] != [numeric_key(f) for f in files2]:
+    raise ValueError(
+        f'"{args.input1}" and "{args.input2}" do not contain the same set of '
+        f'score files: {[numeric_key(f) for f in files1]} vs '
+        f'{[numeric_key(f) for f in files2]}'
+    )
+
 # Read data
 df1 = [pd.read_csv(f, sep=r'\s+', header=1) for f in files1]
 df2 = [pd.read_csv(f, sep=r'\s+', header=1) for f in files2]

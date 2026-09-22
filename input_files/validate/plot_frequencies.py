@@ -19,9 +19,13 @@ def read_wild_type(file_path):
 def count_mutations(sequences, wild_type):
     position_counts = {}
     for seq in sequences:
+        if len(seq) != len(wild_type):
+            raise ValueError(
+                f'Design sequence of length {len(seq)} does not match the reference '
+                f'of length {len(wild_type)}. Both fasta files must be built from the '
+                'same cleaned/renumbered structure.'
+            )
         for i, (wt_residue, mut_residue) in enumerate(zip(wild_type, seq)):
-            if i == 0:
-                continue
             if wt_residue != mut_residue:
                 if i not in position_counts:
                     position_counts[i] = {}
@@ -63,15 +67,14 @@ csv_output_file = args.output.replace('.png', '.csv')
 df.to_csv(csv_output_file, index=False)
 
 # Create x and y values
-labels = [f"{orig}{pos}{mut}" for pos, orig, mut, score in mutation_list]
-scores = [score for _, _, _, score in mutation_list]
+labels = [f"{orig}{pos}{mut}" for pos, orig, mut, score in top_mutations]
+scores = [score for _, _, _, score in top_mutations]
 
-# Plot the top20
+# Plot the selected mutations
 plt.figure(figsize=(5, 5))
 plt.bar(labels, scores, color='skyblue')
 plt.xlabel("Mutation")
 plt.ylabel("Count / -")
 plt.xticks(rotation=90)
-plt.xlim(-0.5, args.mutations-1+0.5)
 plt.tight_layout()
 plt.savefig(args.output, dpi=600)
