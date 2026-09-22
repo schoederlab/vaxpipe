@@ -103,8 +103,9 @@ conda activate snakemake
 conda install -c conda-forge -c bioconda blast hhsuite
 ```
 
-Then fetch the UniRef30 database (~50 GB compressed, ~86 GB unpacked) and point
-`uniref_db` at the file prefix, not at the directory:
+Then fetch the UniRef30 database and point `uniref_db` at the file prefix, not at the
+directory. Budget the disk: the tarball is ~50 GB and unpacks to ~178 GB, so ~228 GB
+has to be free until you delete the archive.
 
 ```
 mkdir -p input_files/UniRef30_2020_06 && cd input_files/UniRef30_2020_06

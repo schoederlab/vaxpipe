@@ -26,10 +26,15 @@ MUTATIONS = [f"{m}" for m in range(1, config["mutations"] + 1)]
 wildcard_constraints:
     i = r"\d{4}",
     m = r"\d+",
+    r = r"\d+",
     sample = r"[^/]+",
     variant = r"[^/]+",
     mode = r"design|control",
     t = r"[^/]+"
+
+# "<sample>_2.symm" matches make_symmdef_file1 as well, with sample="<sample>_2".
+# Both rules can therefore claim that file, so state which one actually produces it.
+ruleorder: make_symmdef_file2 > make_symmdef_file1
 
 rule all:
     input:
@@ -47,15 +52,15 @@ rule all:
         expand(f"{WORKDIR}/pmpnn/pmpnn_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
         #interface design
         expand(f"{WORKDIR}/indes/indes_relax_{{sample}}_new_0001_INPUT_{{i}}_0001.pdb", sample=SAMPLES, i=ITERATIONS),
-        #pross
-        #expand(f"{WORKDIR}/pross/{{sample}}.pssm", sample=SAMPLES),
-        #expand(f"{WORKDIR}/pross/{{sample}}.cst", sample=SAMPLES),
-        #expand(f"{WORKDIR}/pross/{{sample}}.hhr", sample=SAMPLES),
-        #expand(f"{WORKDIR}/pross/{{sample}}.a3m", sample=SAMPLES),
-        #expand(f"{WORKDIR}/pross/{{sample}}.psi", sample=SAMPLES),
-        #expand(f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS),
-        #expand(f"{WORKDIR}/pross/{{sample}}_pross_design_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
-        #expand(f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
+        #pross (needs hhblits, BLAST+ and the UniRef30 database on the host)
+        expand(f"{WORKDIR}/pross/{{sample}}.pssm", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}.cst", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}.hhr", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}.a3m", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}.psi", sample=SAMPLES),
+        expand(f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS),
+        expand(f"{WORKDIR}/pross/{{sample}}_pross_design_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
+        expand(f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
         expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
@@ -76,8 +81,7 @@ rule clean_pdb:
     output:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001.pdb"
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
         f"{WORKDIR}/logs/clean_pdb_{{sample}}.log"
     shell:
@@ -86,7 +90,7 @@ rule clean_pdb:
         mkdir -p {WORKDIR}/pmpnn
         mkdir -p {WORKDIR}/indes
         mkdir -p {WORKDIR}/pross
-        singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif score_jd2 \
+        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif score_jd2 \
         -renumber_pdb -ignore_unrecognized_res -s {input.pdb} \
         -out:pdb -out:suffix _clean -out:path:all {WORKDIR} > {log} 2>&1
         """
@@ -97,8 +101,6 @@ rule make_symmdef_file1:
     output:
         symm = f"{WORKDIR}/{{sample}}.symm",
         pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
-    resources:
-        cpus=1
     log:
         f"{WORKDIR}/logs/make_symmdef_file1_{{sample}}.log"
     shell:
@@ -114,8 +116,6 @@ rule rename_file:
         pdb = f"{WORKDIR}/{{sample}}_clean_0001_INPUT.pdb"
     output:
         pdbs = f"{WORKDIR}/{{sample}}_new.pdb"
-    resources:
-        cpus=1
     shell:
         """
         cp {input.pdb} {output.pdbs}
@@ -128,13 +128,12 @@ rule relax:
     output:
         relaxed_pdb = f"{WORKDIR}/relax_{{sample}}_new_0001.pdb"
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
         f"{WORKDIR}/logs/relax_{{sample}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif relax \
+        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif relax \
         -s {input.pdb} \
         -constrain_relax_to_start_coords \
         -beta \
@@ -151,8 +150,6 @@ rule make_symmdef_file2:
     output:
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
-    resources:
-        cpus=1
     log:
         f"{WORKDIR}/logs/make_symmdef_file2_{{sample}}.log"
     shell:
@@ -169,13 +166,12 @@ rule run_esm:
     params:
         protocol = f"{INPUTDIR}/esm/run_esm_and_save.xml"
     resources:
-        mem_mb=16000,
-        cpus=1
+        mem_mb=16000
     log:
         f"{WORKDIR}/logs/run_esm_{{sample}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} -B {WORKDIR}/../esm2_t33_650M_UR50D:/usr/local/database/protocol_data/tensorflow_graphs/tensorflow_graph_repo_submodule/ESM/esm2_t33_650M_UR50D \
+        singularity run -B {WORKDIR} -B {INPUTDIR} -B {WORKDIR}/../esm2_t33_650M_UR50D:/usr/local/database/protocol_data/tensorflow_graphs/tensorflow_graph_repo_submodule/ESM/esm2_t33_650M_UR50D \
         {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
         -parser:protocol {params.protocol} \
         -parser:script_vars weights={output.weights} \
@@ -195,13 +191,12 @@ rule esm_sampling:
         protocol = f"{INPUTDIR}/esm/sample_mutations.xml",
         resfile = f"{INPUTDIR}/esm/resfile.resfile",
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
         f"{WORKDIR}/logs/esm_sampling_{{sample}}_{{i}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -223,13 +218,12 @@ rule run_pmpnn:
     params:
         protocol = f"{INPUTDIR}/pmpnn/run_mpnn_and_save.xml"
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
         f"{WORKDIR}/logs/run_pmpnn_{{sample}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
         -parser:protocol {params.protocol} \
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
@@ -248,13 +242,12 @@ rule pmpnn_sampling:
         protocol = f"{INPUTDIR}/pmpnn/sample_mutations.xml",
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile",
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
         f"{WORKDIR}/logs/pmpnn_sampling_{{sample}}_{{i}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -277,13 +270,12 @@ rule interface_design:
     params:
         protocol = f"{INPUTDIR}/interface-design/sym_design.xml",
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
         f"{WORKDIR}/logs/interface_design_{{sample}}_{{i}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -305,8 +297,6 @@ rule get_fasta_from_pdbs:
         fastafile = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta"
     params:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
-    resources:
-        cpus=1
     shell:
         """
         python {params.script} -p {input.pdbs} -c A -o {output.fastafile}
@@ -314,15 +304,16 @@ rule get_fasta_from_pdbs:
 
 # The reference sequence has to come from the same structure the designs are built
 # from, otherwise cleaning/renumbering shifts every reported mutation position.
-rule get_wt_fasta:
+# A checkpoint rather than a plain rule: filterscan fans out into one job per residue,
+# and the residue count is only known once this sequence exists, which is after the DAG
+# has been built. The checkpoint makes Snakemake re-evaluate the DAG at that point.
+checkpoint get_wt_fasta:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb"
     output:
         fastafile = f"{WORKDIR}/{{sample}}_WT.fasta"
     params:
         script = f"{INPUTDIR}/get_fasta/get_multifasta_from_pdb_path.py"
-    resources:
-        cpus=1
     shell:
         """
         python {params.script} \
@@ -342,59 +333,98 @@ rule generate_PSSM_and_constraints:
         pssm = f"{WORKDIR}/pross/{{sample}}.pssm",
         cst = f"{WORKDIR}/pross/{{sample}}.cst",
         hhr_log = f"{WORKDIR}/pross/{{sample}}_hhr.log"
+    # hhblits holds the UniRef30 prefilter in memory: ~12 GB for a 44-residue query,
+    # more for longer ones. The 4 GB default would get the job OOM-killed.
+    threads: 8
     resources:
-        cpus=1
+        mem_mb=32000
+    log:
+        f"{WORKDIR}/logs/generate_PSSM_and_constraints_{{sample}}.log"
     shell:
         """
         mkdir -p {WORKDIR}/pross
         bash {INPUTDIR}/pross/pssm/generate_pssm.file \
-        {input.fastafile} {output.hhr} {output.a3m} {output.psi} {output.hhr_log} {output.pssm} {UNIREF_DB}
-        bash {INPUTDIR}/pross/filter/make_cst.sh {input.pdb} > {output.cst}
+        {input.fastafile} {output.hhr} {output.a3m} {output.psi} {output.hhr_log} {output.pssm} {UNIREF_DB} {threads} > {log} 2>&1
+        bash {INPUTDIR}/pross/filter/make_cst.sh {input.pdb} > {output.cst} 2>> {log}
         """
 
-# One FilterScan pass writes the resfiles for *all* delta thresholds at once, so this
-# rule has to declare all of them. Parameterising it by {t} instead would run the
-# whole per-residue scan once per temperature, with every job writing the same files.
-rule filterscan:
+def wt_sequence_length(sample):
+    """Residue count of the scanned chain, read after get_wt_fasta has run."""
+    fasta = checkpoints.get_wt_fasta.get(sample=sample).output.fastafile
+    with open(fasta) as handle:
+        seq = "".join(line.strip() for line in handle if not line.startswith(">"))
+    return len(seq)
+
+
+def filterscan_residue_resfiles(wildcards):
+    return expand(
+        WORKDIR + "/pross/{sample}_resfiles_pross/res{r}/designable_aa_resfile.{t}",
+        sample=wildcards.sample,
+        t=wildcards.t,
+        r=range(1, wt_sequence_length(wildcards.sample) + 1),
+    )
+
+
+# One FilterScan call scans a single residue but writes it to the resfiles of *all*
+# delta thresholds at once, so this rule has to declare all of them. The residues are
+# independent, hence one job each; they cannot share an output file, because FilterScan
+# appends and concurrent jobs would interleave their lines.
+rule filterscan_residue:
     input:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         cst = f"{WORKDIR}/pross/{{sample}}.cst",
-        pssm = f"{WORKDIR}/pross/{{sample}}.pssm",
-        fasta = f"{WORKDIR}/{{sample}}_WT.fasta"
+        pssm = f"{WORKDIR}/pross/{{sample}}.pssm"
     output:
         resfiles = expand(
-            WORKDIR + "/pross/{sample}_resfiles_pross/designable_aa_resfile.{t}",
+            WORKDIR + "/pross/{sample}_resfiles_pross/res{r}/designable_aa_resfile.{t}",
             t=PROSS_TEMPS,
             allow_missing=True
         )
     params:
         protocol = f"{INPUTDIR}/pross/filter/filterscan.xml",
-        path = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile",
+        path = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/res{{r}}/designable_aa_resfile",
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
-        f"{WORKDIR}/logs/filterscan_{{sample}}.log"
+        f"{WORKDIR}/logs/filterscan_{{sample}}_res{{r}}.log"
     shell:
         """
         mkdir -p $(dirname {params.path})
-        : > {log}
-        nres=$(grep -v '^>' {input.fasta} | tr -d '\n' | wc -c)
-        for res in $(seq 1 $nres); do
-            singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
-                -parser:protocol {params.protocol} \
-                -s {input.pdb} \
-                -parser:script_vars sym={input.symm} \
-                -parser:script_vars pdb_reference={input.pdb} \
-                -parser:script_vars cst_full_path={input.cst} \
-                -parser:script_vars cst_value=0.4 \
-                -parser:script_vars pssm_full_path={input.pssm} \
-                -parser:script_vars resfiles_path={params.path} \
-                -parser:script_vars current_res=$res \
-                -out:path:all {WORKDIR}/pross \
-                -beta \
-                -overwrite >> {log} 2>&1
+        # The image ships an MPI build of Rosetta. Snakemake runs rules inside an `srun`
+        # job step, and a second MPI_Init in the same step makes PMIx abort and take the
+        # step down with it. One Rosetta call per job avoids that, but Snakemake may put
+        # several jobs in one step when they are grouped, so start Rosetta standalone.
+        UNSET=$(env | grep -oE '^(PMIX|PMI|SLURM)_[A-Za-z0-9_]*' | sed 's/^/-u /')
+        env $UNSET singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+            -parser:protocol {params.protocol} \
+            -s {input.pdb} \
+            -parser:script_vars sym={input.symm} \
+            -parser:script_vars pdb_reference={input.pdb} \
+            -parser:script_vars cst_full_path={input.cst} \
+            -parser:script_vars cst_value=0.4 \
+            -parser:script_vars pssm_full_path={input.pssm} \
+            -parser:script_vars resfiles_path={params.path} \
+            -parser:script_vars current_res={wildcards.r} \
+            -out:path:all {WORKDIR}/pross \
+            -beta \
+            -overwrite > {log} 2>&1
+        """
+
+# Stitch the per-residue resfiles back into the single file per threshold that
+# pross_design expects. `input` arrives in residue order, so the body keeps the
+# ascending numbering the serial scan produced.
+rule merge_filterscan_resfiles:
+    input:
+        filterscan_residue_resfiles
+    output:
+        resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}"
+    shell:
+        """
+        set -- {input}
+        sed -n '1,/^start$/p' "$1" > {output.resfile}
+        for f in {input}; do
+            sed -n '/^start$/,$p' "$f" | tail -n +2 >> {output.resfile}
         done
         """
 
@@ -410,13 +440,12 @@ rule pross_design:
     params:
         protocol = f"{INPUTDIR}/pross/design/design.xml",
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
         f"{WORKDIR}/logs/pross_design_{{sample}}_{{t}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -447,13 +476,12 @@ rule pross_design_wt:
     params:
         protocol = f"{INPUTDIR}/pross/design/design_WT.xml",
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
         f"{WORKDIR}/logs/pross_design_wt_{{sample}}_{{t}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -482,8 +510,6 @@ rule plot_frequencies:
     params:
         script = f"{INPUTDIR}/validate/plot_frequencies.py",
         mutations = len(MUTATIONS)
-    resources:
-        cpus=1
     shell:
         """
         python {params.script} -i {input.fastafile} -r {input.wtfile} -m {params.mutations} -o {output.figure}
@@ -496,8 +522,6 @@ rule get_mutation_list:
         out = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{m}}.txt"
     params:
         script = f"{INPUTDIR}/validate/design-mutations.py"
-    resources:
-        cpus=1
     shell:
         """
         mkdir -p $(dirname {output.out})
@@ -519,8 +543,7 @@ rule run_design_or_control:
         # concurrent jobs of all mutations overwrite each other's structures.
         pdbdir = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}/{{m}}_decoys"
     resources:
-        mem_mb=4000,
-        cpus=1
+        mem_mb=4000
     log:
         f"{WORKDIR}/logs/run_design_or_control_{{variant}}_{{sample}}_{{mode}}_{{m}}.log"
     shell:
@@ -531,7 +554,7 @@ rule run_design_or_control:
         mutaa=$(echo $MUTATION_LINE | cut -d'_' -f2)
 
         mkdir -p {params.outdir} {params.pdbdir}
-        singularity run -B {WORKDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.xml} \
             -parser:script_vars mutpos=$mutpos mut_aa=$mutaa protocol={wildcards.mode} symfile={input.symfile} \
             -in:file:s {input.pdb} \
@@ -551,8 +574,6 @@ rule plot_energy:
         image = f"{WORKDIR}/{{variant}}/{{sample}}_energydifference_{{variant}}.png"
     params:
         script = f"{INPUTDIR}/validate/plot_energies.py"
-    resources:
-        cpus=1
     shell:
         """
         python {params.script} \

@@ -1,16 +1,17 @@
 #!/bin/sh
-# usage: generate_pssm.file <fasta> <hhr> <a3m> <psi> <hhr_log> <pssm> <uniref_db_prefix>
+# usage: generate_pssm.file <fasta> <hhr> <a3m> <psi> <hhr_log> <pssm> <uniref_db_prefix> [threads]
 # The database prefix is passed in from config.yaml (key: uniref_db).
 
 if [ $# -lt 7 ]; then
-	echo "usage: $0 <fasta> <hhr> <a3m> <psi> <hhr_log> <pssm> <uniref_db_prefix>" >&2
+	echo "usage: $0 <fasta> <hhr> <a3m> <psi> <hhr_log> <pssm> <uniref_db_prefix> [threads]" >&2
 	exit 1
 fi
 
 db=$7
+cpu=${8:-1}
 
 #generate multi-sequence alignment file with hhblits
-hhblits -i $1 -o $2 -hide_cons -d "$db" -oa3m $3
+hhblits -i $1 -o $2 -hide_cons -d "$db" -oa3m $3 -cpu "$cpu"
 #convert hhblits output to psiblast readable format
 awk '/^>/ {print; next} {gsub(/[a-z]/,""); print}' $3 > $4
 #generate .pssm with psiblast
