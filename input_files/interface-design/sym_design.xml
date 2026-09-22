@@ -77,14 +77,16 @@
 	<PROTOCOLS>
 		<Add mover_name="setup_symm" />
 		<Add mover_name="fdes" />
-		
-		Add mover="relax" />
-		Add mover="packer_design" />
-		Add mover="relax" />
-		Add mover="packer_design" />
-		Add mover="relax" />
-		
-		Add metrics="pos_interface,pos_nothing,surface" />
+
+		<!-- disabled: alternative design cycle instead of a single FastDesign
+		<Add mover="relax" />
+		<Add mover="packer_design" />
+		<Add mover="relax" />
+		<Add mover="packer_design" />
+		<Add mover="relax" />
+		-->
+
+		<!-- <Add metrics="pos_interface,pos_nothing,surface" /> -->
 		<Add filter="sc" />
 		<Add filter="cms" />
 		<Add mover="IFA" />

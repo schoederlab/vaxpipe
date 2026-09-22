@@ -6,8 +6,19 @@ workdir: /data/horse/ws/jari462g-vaxpipe/vaxpipe/test
 
 inputdir: /data/horse/ws/jari462g-vaxpipe/vaxpipe/input_files
 
+# Path prefix of the hhsuite UniRef30 database, used to build the PROSS PSSM
+uniref_db: /data/horse/ws/jari462g-vaxpipe/vaxpipe/input_files/UniRef30_2020_06/UniRef30_2020_06
+
 # List of samples
 samples: 3ft7
 
+# Designs generated per branch (esm, pmpnn, indes)
+iterations: 200
+
+# Most frequent mutations carried into the design/control validation
+mutations: 20
+
 # PROSS sampling temperatures
+# These must match the delta_filter_thresholds of the FilterScan filter in
+# input_files/pross/filter/filterscan.xml, which names the resfiles it writes.
 pross_temps: [-0.5,-1,-1.5,-2,-2.5,-3,-3.5,-4,-4.5,-5,-5.5,-6]

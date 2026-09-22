@@ -25,6 +25,7 @@
     	<Add mover_name="setup_symm"/>
         <Add mover_name="load"/>
         <Add mover_name="sample"/>
+        <Add mover_name="score"/>
     </PROTOCOLS>
     <OUTPUT scorefxn="beta_full"/>
 </ROSETTASCRIPTS>

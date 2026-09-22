@@ -24,7 +24,7 @@
 <RestrictToRepackingRLT/>
 </OperateOnResidueSubset>
 <SeqprofConsensus name="pssm_cutoff" filename="%%pssm_full_path%%" min_aa_probability="0" convert_scores_to_probabilities="0" probability_larger_than_current="0"
-keep_native="1"/>/>
+keep_native="1"/>
 </TASKOPERATIONS>
 <MOVERS>
 <SetupForSymmetry name="setup_symm" definition="%%sym%%" set_global_symmetry_at_parsetime="0"/>
