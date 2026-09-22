@@ -18,6 +18,10 @@ iterations: 200
 # Most frequent mutations carried into the design/control validation
 mutations: 20
 
+# Profiles the PROSS design is run with: msa (hhblits/psiblast), esm, pmpnn.
+# esm and pmpnn reuse the probabilities the sampling branches already compute.
+pssm_sources: [msa, esm, pmpnn]
+
 # PROSS sampling temperatures
 # These must match the delta_filter_thresholds of the FilterScan filter in
 # input_files/pross/filter/filterscan.xml, which names the resfiles it writes.

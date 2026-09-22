@@ -51,6 +51,7 @@ All paths live in `config.yaml`:
 | `samples` | Basename of the input PDB (`3ft7` for `3ft7.pdb`). |
 | `iterations` | Designs generated per branch (esm, pmpnn, indes). |
 | `mutations` | Most frequent mutations carried into the design/control validation. |
+| `pssm_sources` | Which profiles drive the PROSS design: any of `msa`, `esm`, `pmpnn`. See [Profile sources](#profile-sources). |
 | `pross_temps` | PROSS delta-score thresholds. These must match `delta_filter_thresholds` of the `FilterScan` filter in `input_files/pross/filter/filterscan.xml`, because that filter derives the resfile names from them. |
 
 `iterations` and `mutations` are what a local trial run and a production run on the
@@ -94,9 +95,9 @@ A symlink works as well as a copy, and `.gitignore` already excludes the directo
 
 #### PROSS dependencies
 
-Only needed if you enable the `#pross` block in `rule all` (see [PROSS](#pross)).
-`hhblits` and `psiblast` run on the *host*, not in the Rosetta container, so they go
-into the same conda environment:
+The PROSS branch runs by default (see [PROSS](#pross)); drop its targets from `rule all`
+if you do not want it. `hhblits` and `psiblast` run on the *host*, not in the Rosetta
+container, so they go into the same conda environment:
 
 ```
 conda activate snakemake
@@ -104,8 +105,11 @@ conda install -c conda-forge -c bioconda blast hhsuite
 ```
 
 Then fetch the UniRef30 database and point `uniref_db` at the file prefix, not at the
-directory. Budget the disk: the tarball is ~50 GB and unpacks to ~178 GB, so ~228 GB
-has to be free until you delete the archive.
+directory. Budget the disk: the tarball is ~50 GB and unpacks to ~181 GB, so ~231 GB
+has to be free until you delete the archive. Check what the filesystem actually charges
+for that, though -- on a Lustre that mirrors files (`lfs getstripe -N` > 1) every byte
+is stored twice, which turns the unpacked database into ~362 GB. `du -sh` reports the
+real figure, `du -sh --apparent-size` the nominal one.
 
 ```
 mkdir -p input_files/UniRef30_2020_06 && cd input_files/UniRef30_2020_06
@@ -160,8 +164,9 @@ For more in-depth information, please refer to the [Snakemake documentation](htt
 2. **Sampling** — three independent branches produce `ITERATIONS` designs each:
    `esm` (ESM-2 probabilities), `pmpnn` (ProteinMPNN probabilities) and `indes`
    (Rosetta symmetric interface `FastDesign`).
-3. **PROSS** — PSSM plus coordinate constraints, a `FilterScan` over every residue, and
-   design/WT scoring at each threshold in `pross_temps`.
+3. **PROSS** — a sequence profile plus coordinate constraints, a `FilterScan` job per
+   residue, and design/WT scoring at each threshold in `pross_temps`. Runs once per
+   entry in `pssm_sources`.
 4. **Analysis** — sequences are extracted from all designs, mutation frequencies are
    counted against the wild type, and the `MUTATIONS` most frequent substitutions are
    each rebuilt twice (`design` with the mutation, `control` without it).
@@ -173,15 +178,61 @@ outputs carry those `_0001` / `_00XX` infixes. When changing `-out:prefix`,
 
 ### PROSS
 
-The PROSS rules (`generate_PSSM_and_constraints`, `filterscan`, `pross_design`,
-`pross_design_wt`) are implemented but their targets are commented out in `rule all`,
-so they do not run by default. They are the only part of the pipeline that needs
-`hhblits`, BLAST+ and the UniRef30 database on the host. To enable them, uncomment the
-`#pross` block in `rule all` and set `uniref_db` in `config.yaml`.
+PROSS engineers stabilising mutations by intersecting two independent filters. A
+sequence profile decides which amino acids are *allowed* at each position, and Rosetta
+decides which of those are actually *stabilising* — a mutation has to pass both. That
+conjunction is what keeps the protocol conservative enough to trust.
 
-Note that `filterscan` runs one Rosetta job per residue and writes the resfiles for all
-`pross_temps` thresholds in that single pass, which is why it is one Snakemake job
-rather than one per threshold.
+The rules are `generate_PSSM_and_constraints`, `pssm_from_weights`, `filterscan_residue`,
+`merge_filterscan_resfiles`, `pross_design` and `pross_design_wt`. They are the only part
+of the pipeline that needs `hhblits`, BLAST+ and the UniRef30 database on the host, so
+set `uniref_db` before running them.
+
+`FilterScan` scans one residue at a time, and each call writes into the resfiles of
+*every* `pross_temps` threshold at once. The residues are independent, so the pipeline
+runs one job per residue and `merge_filterscan_resfiles` stitches the per-residue files
+back into one resfile per threshold. They cannot share an output file directly, because
+FilterScan appends and concurrent jobs would interleave their lines. Because the residue
+count is only known once `<sample>_WT.fasta` exists, `get_wt_fasta` is a Snakemake
+checkpoint.
+
+#### Profile sources
+
+`pssm_sources` selects which profiles drive the design; each one runs the whole PROSS
+branch and gets its own outputs.
+
+| source | profile |
+| --- | --- |
+| `msa` | the classic PROSS PSSM, from `hhblits` against UniRef30 followed by `psiblast` |
+| `esm` | the ESM-2 probabilities the `esm` sampling branch already computes |
+| `pmpnn` | the ProteinMPNN probabilities the `pmpnn` sampling branch already computes |
+
+`esm` and `pmpnn` cost nothing extra to produce, since both probability tables are built
+anyway for the sampling branches. `weights_to_pssm.py` converts them with
+`2 * log2(p / background)` on Robinson & Robinson background frequencies. The log-odds
+step is not cosmetic: `SeqprofConsensus` keeps every residue type scoring `>= 0`, and a
+probability is never negative, so feeding probabilities straight in would let all 20
+amino acids through and silently disable the filter. Scores are clamped at ±10 because
+the neural models are far more peaked than an alignment — ESM reaches `p = 2e-6`, which
+would otherwise score about -29 and swamp the `res_type_constraint` bonus that is tuned
+for BLAST-sized numbers.
+
+Two consequences worth knowing before reading the results:
+
+- The neural profiles are *sharper*, and at some positions they admit nothing but the
+  native residue. FilterScan then has no mutation to scan and writes no resfile, which
+  is a real result rather than a failure; `filterscan_residue` leaves an empty resfile
+  behind so the merge skips that position.
+- ProteinMPNN is conditioned on the backbone, so its preferences already correlate with
+  what Rosetta's energy function rewards. It will tend to look best on Δ total score
+  partly for that reason, which weakens the independence the two-filter logic relies on.
+  An alignment also encodes *functional* constraint — residues conserved because they
+  bind or catalyse, not because they stabilise — that a structure-only model cannot see.
+  If the point is to preserve epitopes, that is an argument for keeping `msa` in the mix.
+
+The case for the neural profiles is targets with shallow alignments, where `hhblits`
+returns too few homologues for the PSSM to mean anything. Check `Neff` in
+`pross/<sample>.hhr` before trusting the `msa` branch on a de novo scaffold.
 
 ### Output Layout
 
@@ -204,9 +255,12 @@ rather than one per threshold.
 │           ├── <n>.sc                    # score file that is compared
 │           └── <n>_decoys/               # the 20 structures behind it
 └── pross/
-    ├── <sample>.hhr | .a3m | .psi | .pssm | .cst
-    ├── <sample>_resfiles_pross/designable_aa_resfile.<temp>
-    └── <sample>_pross_design_<temp>.sc | <sample>_pross_wt_<temp>.sc
+    ├── <sample>.hhr | .a3m | .psi | .pssm | .cst   # the msa profile and constraints
+    ├── <sample>_esm.pssm | <sample>_pmpnn.pssm     # converted neural profiles
+    ├── <sample>_resfiles_<source>/
+    │   ├── res<n>/designable_aa_resfile.<temp>     # one directory per residue
+    │   └── designable_aa_resfile.<temp>            # merged, what the design reads
+    └── <sample>_pross_design_<source>_<temp>.sc | <sample>_pross_wt_<source>_<temp>.sc
 ```
 
 Every rule writes its stdout/stderr to `<workdir>/logs/<rule>_<wildcards>.log`. If a

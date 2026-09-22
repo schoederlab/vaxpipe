@@ -12,6 +12,9 @@ WORKDIR = config["workdir"]
 SAMPLES = config["samples"]
 UNIREF_DB = config["uniref_db"]
 PROSS_TEMPS = config["pross_temps"]
+# Which profile drives the PROSS design: the hhblits/psiblast alignment ("msa"),
+# or the ESM / ProteinMPNN probabilities converted to log-odds.
+PSSM_SOURCES = config["pssm_sources"]
 
 #wildcards
 analysis_variants = ["esm","indes","pmpnn"]
@@ -26,6 +29,7 @@ MUTATIONS = [f"{m}" for m in range(1, config["mutations"] + 1)]
 wildcard_constraints:
     i = r"\d{4}",
     m = r"\d+",
+    p = r"msa|esm|pmpnn",
     r = r"\d+",
     sample = r"[^/]+",
     variant = r"[^/]+",
@@ -35,6 +39,10 @@ wildcard_constraints:
 # "<sample>_2.symm" matches make_symmdef_file1 as well, with sample="<sample>_2".
 # Both rules can therefore claim that file, so state which one actually produces it.
 ruleorder: make_symmdef_file2 > make_symmdef_file1
+
+# Same trap for "<sample>_<source>.pssm", which generate_PSSM_and_constraints matches
+# with sample="<sample>_<source>". The converted neural profiles own that name.
+ruleorder: pssm_from_weights > generate_PSSM_and_constraints
 
 rule all:
     input:
@@ -58,9 +66,9 @@ rule all:
         expand(f"{WORKDIR}/pross/{{sample}}.hhr", sample=SAMPLES),
         expand(f"{WORKDIR}/pross/{{sample}}.a3m", sample=SAMPLES),
         expand(f"{WORKDIR}/pross/{{sample}}.psi", sample=SAMPLES),
-        expand(f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS),
-        expand(f"{WORKDIR}/pross/{{sample}}_pross_design_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
-        expand(f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS),
+        expand(f"{WORKDIR}/pross/{{sample}}_resfiles_{{p}}/designable_aa_resfile.{{t}}", sample=SAMPLES, t=PROSS_TEMPS, p=PSSM_SOURCES),
+        expand(f"{WORKDIR}/pross/{{sample}}_pross_design_{{p}}_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS, p=PSSM_SOURCES),
+        expand(f"{WORKDIR}/pross/{{sample}}_pross_wt_{{p}}_{{t}}.sc", sample=SAMPLES, t=PROSS_TEMPS, p=PSSM_SOURCES),
         #analysis
         expand(f"{WORKDIR}/{{sample}}_WT.fasta", sample=SAMPLES),
         expand(f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}.fasta", sample=SAMPLES, variant=analysis_variants),
@@ -358,11 +366,46 @@ def wt_sequence_length(sample):
 
 def filterscan_residue_resfiles(wildcards):
     return expand(
-        WORKDIR + "/pross/{sample}_resfiles_pross/res{r}/designable_aa_resfile.{t}",
+        WORKDIR + "/pross/{sample}_resfiles_{p}/res{r}/designable_aa_resfile.{t}",
         sample=wildcards.sample,
+        p=wildcards.p,
         t=wildcards.t,
         r=range(1, wt_sequence_length(wildcards.sample) + 1),
     )
+
+
+# "msa" is the classic PROSS profile built by hhblits/psiblast; "esm" and "pmpnn" are
+# the same design protocol driven by the neural probabilities the sampling branches
+# already produce, converted to log-odds.
+def pssm_for_source(wildcards):
+    if wildcards.p == "msa":
+        return f"{WORKDIR}/pross/{wildcards.sample}.pssm"
+    return f"{WORKDIR}/pross/{wildcards.sample}_{wildcards.p}.pssm"
+
+
+# The two neural branches name their probability tables differently.
+PROBS_FILE = {
+    "esm": WORKDIR + "/esm/{sample}_esm_probs.weights",
+    "pmpnn": WORKDIR + "/pmpnn/{sample}_mpnn_probs.weights",
+}
+
+
+rule pssm_from_weights:
+    input:
+        weights = lambda wc: PROBS_FILE[wc.p].format(sample=wc.sample),
+        fasta = f"{WORKDIR}/{{sample}}_WT.fasta"
+    output:
+        pssm = f"{WORKDIR}/pross/{{sample}}_{{p}}.pssm"
+    params:
+        script = f"{INPUTDIR}/pross/pssm/weights_to_pssm.py"
+    wildcard_constraints:
+        p = "esm|pmpnn"
+    log:
+        f"{WORKDIR}/logs/pssm_from_weights_{{sample}}_{{p}}.log"
+    shell:
+        """
+        python {params.script} -i {input.weights} -s {input.fasta} -o {output.pssm} > {log} 2>&1
+        """
 
 
 # One FilterScan call scans a single residue but writes it to the resfiles of *all*
@@ -374,20 +417,21 @@ rule filterscan_residue:
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         cst = f"{WORKDIR}/pross/{{sample}}.cst",
-        pssm = f"{WORKDIR}/pross/{{sample}}.pssm"
+        pssm = pssm_for_source
     output:
         resfiles = expand(
-            WORKDIR + "/pross/{sample}_resfiles_pross/res{r}/designable_aa_resfile.{t}",
+            WORKDIR + "/pross/{sample}_resfiles_{p}/res{r}/designable_aa_resfile.{t}",
             t=PROSS_TEMPS,
             allow_missing=True
         )
     params:
         protocol = f"{INPUTDIR}/pross/filter/filterscan.xml",
-        path = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/res{{r}}/designable_aa_resfile",
+        path = f"{WORKDIR}/pross/{{sample}}_resfiles_{{p}}/res{{r}}/designable_aa_resfile",
+        temps = " ".join(str(t) for t in PROSS_TEMPS),
     resources:
         mem_mb=4000
     log:
-        f"{WORKDIR}/logs/filterscan_{{sample}}_res{{r}}.log"
+        f"{WORKDIR}/logs/filterscan_{{sample}}_{{p}}_res{{r}}.log"
     shell:
         """
         mkdir -p $(dirname {params.path})
@@ -409,6 +453,13 @@ rule filterscan_residue:
             -out:path:all {WORKDIR}/pross \
             -beta \
             -overwrite > {log} 2>&1
+        # A position whose profile admits nothing but the native residue has no mutation
+        # to scan, so FilterScan writes no resfile at all. That is a real result, not a
+        # failure -- the sharper ESM/ProteinMPNN profiles hit it where an alignment does
+        # not -- so leave the empty resfiles behind for the merge to skip over.
+        for t in {params.temps}; do
+            [ -f "{params.path}.$t" ] || {{ echo nataa; echo start; }} > "{params.path}.$t"
+        done
         """
 
 # Stitch the per-residue resfiles back into the single file per threshold that
@@ -418,7 +469,7 @@ rule merge_filterscan_resfiles:
     input:
         filterscan_residue_resfiles
     output:
-        resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}"
+        resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_{{p}}/designable_aa_resfile.{{t}}"
     shell:
         """
         set -- {input}
@@ -430,19 +481,19 @@ rule merge_filterscan_resfiles:
 
 rule pross_design:
     input:
-        resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
+        resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_{{p}}/designable_aa_resfile.{{t}}",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         cst = f"{WORKDIR}/pross/{{sample}}.cst",
-        pssm = f"{WORKDIR}/pross/{{sample}}.pssm"
+        pssm = pssm_for_source
     output:
-        sc = f"{WORKDIR}/pross/{{sample}}_pross_design_{{t}}.sc"
+        sc = f"{WORKDIR}/pross/{{sample}}_pross_design_{{p}}_{{t}}.sc"
     params:
         protocol = f"{INPUTDIR}/pross/design/design.xml",
     resources:
         mem_mb=4000
     log:
-        f"{WORKDIR}/logs/pross_design_{{sample}}_{{t}}.log"
+        f"{WORKDIR}/logs/pross_design_{{sample}}_{{p}}_{{t}}.log"
     shell:
         """
         singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -460,25 +511,25 @@ rule pross_design:
             -use_occurrence_data \
             -out:file:scorefile {output.sc} \
             -out:path:all {WORKDIR}/pross \
-            -out:prefix pross_design_{wildcards.t} \
+            -out:prefix pross_design_{wildcards.p}_{wildcards.t} \
             -beta > {log} 2>&1
         """
 
 rule pross_design_wt:
     input:
-        resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_pross/designable_aa_resfile.{{t}}",
+        resfile = f"{WORKDIR}/pross/{{sample}}_resfiles_{{p}}/designable_aa_resfile.{{t}}",
         symm = f"{WORKDIR}/{{sample}}_2.symm",
         pdb = f"{WORKDIR}/relax_{{sample}}_new_0001_INPUT.pdb",
         cst = f"{WORKDIR}/pross/{{sample}}.cst",
-        pssm = f"{WORKDIR}/pross/{{sample}}.pssm"
+        pssm = pssm_for_source
     output:
-        sc = f"{WORKDIR}/pross/{{sample}}_pross_wt_{{t}}.sc"
+        sc = f"{WORKDIR}/pross/{{sample}}_pross_wt_{{p}}_{{t}}.sc"
     params:
         protocol = f"{INPUTDIR}/pross/design/design_WT.xml",
     resources:
         mem_mb=4000
     log:
-        f"{WORKDIR}/logs/pross_design_wt_{{sample}}_{{t}}.log"
+        f"{WORKDIR}/logs/pross_design_wt_{{sample}}_{{p}}_{{t}}.log"
     shell:
         """
         singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
@@ -495,7 +546,7 @@ rule pross_design_wt:
             -use_input_sc \
             -use_occurrence_data \
             -out:file:scorefile {output.sc} \
-            -out:prefix pross_wt_{wildcards.t} \
+            -out:prefix pross_wt_{wildcards.p}_{wildcards.t} \
             -out:path:all {WORKDIR}/pross \
             -beta > {log} 2>&1
         """
