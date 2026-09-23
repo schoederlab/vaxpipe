@@ -2,7 +2,7 @@
 rosettadir: /data/horse/ws/jari462g-vaxpipe2/rosetta_dir
 
 # Path to working directory
-workdir: /data/horse/ws/jari462g-vaxpipe2/vaxpipe/test
+workdir: /data/horse/ws/jari462g-vaxpipe2/vaxpipe/corinna
 
 inputdir: /data/horse/ws/jari462g-vaxpipe2/vaxpipe/input_files
 
@@ -10,10 +10,10 @@ inputdir: /data/horse/ws/jari462g-vaxpipe2/vaxpipe/input_files
 uniref_db: /data/horse/ws/jari462g-vaxpipe2/vaxpipe/input_files/UniRef30_2020_06/UniRef30_2020_06
 
 # List of samples
-samples: 3ft7
+samples: 6u7k
 
 # Designs generated per branch (esm, pmpnn, indes)
-iterations: 200
+iterations: 100
 
 # Most frequent mutations carried into the design/control validation
 mutations: 20

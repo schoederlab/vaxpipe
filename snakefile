@@ -16,6 +16,13 @@ PROSS_TEMPS = config["pross_temps"]
 # or the ESM / ProteinMPNN probabilities converted to log-odds.
 PSSM_SOURCES = config["pssm_sources"]
 
+# The image ships an MPI build of Rosetta, and Snakemake runs each rule inside an `srun`
+# job step. MPI teardown inside that step can abort through PMIx and take the step down
+# with it -- SIGKILL *after* the work is finished, so Rosetta reports success, Snakemake
+# still sees a failed job and deletes the output. It bit a 6 h relax but not a 1 min one,
+# so it looks intermittent; running Rosetta without the launcher's variables avoids it.
+NO_LAUNCHER_ENV = "env $(env | grep -oE '^(PMIX|PMI|SLURM)_[A-Za-z0-9_]*' | sed 's/^/-u /')"
+
 #wildcards
 analysis_variants = ["esm","indes","pmpnn"]
 modes = ["design", "control"]
@@ -98,7 +105,7 @@ rule clean_pdb:
         mkdir -p {WORKDIR}/pmpnn
         mkdir -p {WORKDIR}/indes
         mkdir -p {WORKDIR}/pross
-        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif score_jd2 \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif score_jd2 \
         -renumber_pdb -ignore_unrecognized_res -s {input.pdb} \
         -out:pdb -out:suffix _clean -out:path:all {WORKDIR} > {log} 2>&1
         """
@@ -136,19 +143,20 @@ rule relax:
     output:
         relaxed_pdb = f"{WORKDIR}/relax_{{sample}}_new_0001.pdb"
     resources:
-        mem_mb=4000
+        mem_mb=8000,
+        runtime=720
     log:
         f"{WORKDIR}/logs/relax_{{sample}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif relax \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif relax \
         -s {input.pdb} \
         -constrain_relax_to_start_coords \
         -beta \
         -nstruct 1 \
-        -multiple_processes_writing_to_one_directory \
         -out:prefix relax_ \
         -out:path:all {WORKDIR} \
+        -overwrite \
         -symmetry_definition {input.symm} > {log} 2>&1
         """
 
@@ -174,12 +182,12 @@ rule run_esm:
     params:
         protocol = f"{INPUTDIR}/esm/run_esm_and_save.xml"
     resources:
-        mem_mb=16000
+        mem_mb=48000
     log:
         f"{WORKDIR}/logs/run_esm_{{sample}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} -B {INPUTDIR} -B {WORKDIR}/../esm2_t33_650M_UR50D:/usr/local/database/protocol_data/tensorflow_graphs/tensorflow_graph_repo_submodule/ESM/esm2_t33_650M_UR50D \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} -B {WORKDIR}/../esm2_t33_650M_UR50D:/usr/local/database/protocol_data/tensorflow_graphs/tensorflow_graph_repo_submodule/ESM/esm2_t33_650M_UR50D \
         {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
         -parser:protocol {params.protocol} \
         -parser:script_vars weights={output.weights} \
@@ -199,12 +207,12 @@ rule esm_sampling:
         protocol = f"{INPUTDIR}/esm/sample_mutations.xml",
         resfile = f"{INPUTDIR}/esm/resfile.resfile",
     resources:
-        mem_mb=4000
+        mem_mb=8000
     log:
         f"{WORKDIR}/logs/esm_sampling_{{sample}}_{{i}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -226,12 +234,12 @@ rule run_pmpnn:
     params:
         protocol = f"{INPUTDIR}/pmpnn/run_mpnn_and_save.xml"
     resources:
-        mem_mb=4000
+        mem_mb=8000
     log:
         f"{WORKDIR}/logs/run_pmpnn_{{sample}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
         -parser:protocol {params.protocol} \
         -parser:script_vars weights={output.weights} \
         -s {input.pdb} \
@@ -250,12 +258,12 @@ rule pmpnn_sampling:
         protocol = f"{INPUTDIR}/pmpnn/sample_mutations.xml",
         resfile = f"{INPUTDIR}/pmpnn/resfile.resfile",
     resources:
-        mem_mb=4000
+        mem_mb=8000
     log:
         f"{WORKDIR}/logs/pmpnn_sampling_{{sample}}_{{i}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -278,12 +286,12 @@ rule interface_design:
     params:
         protocol = f"{INPUTDIR}/interface-design/sym_design.xml",
     resources:
-        mem_mb=4000
+        mem_mb=8000
     log:
         f"{WORKDIR}/logs/interface_design_{{sample}}_{{i}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -345,7 +353,7 @@ rule generate_PSSM_and_constraints:
     # more for longer ones. The 4 GB default would get the job OOM-killed.
     threads: 8
     resources:
-        mem_mb=32000
+        mem_mb=64000
     log:
         f"{WORKDIR}/logs/generate_PSSM_and_constraints_{{sample}}.log"
     shell:
@@ -429,18 +437,13 @@ rule filterscan_residue:
         path = f"{WORKDIR}/pross/{{sample}}_resfiles_{{p}}/res{{r}}/designable_aa_resfile",
         temps = " ".join(str(t) for t in PROSS_TEMPS),
     resources:
-        mem_mb=4000
+        mem_mb=8000
     log:
         f"{WORKDIR}/logs/filterscan_{{sample}}_{{p}}_res{{r}}.log"
     shell:
         """
         mkdir -p $(dirname {params.path})
-        # The image ships an MPI build of Rosetta. Snakemake runs rules inside an `srun`
-        # job step, and a second MPI_Init in the same step makes PMIx abort and take the
-        # step down with it. One Rosetta call per job avoids that, but Snakemake may put
-        # several jobs in one step when they are grouped, so start Rosetta standalone.
-        UNSET=$(env | grep -oE '^(PMIX|PMI|SLURM)_[A-Za-z0-9_]*' | sed 's/^/-u /')
-        env $UNSET singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -491,12 +494,13 @@ rule pross_design:
     params:
         protocol = f"{INPUTDIR}/pross/design/design.xml",
     resources:
-        mem_mb=4000
+        mem_mb=8000,
+        runtime=2880
     log:
         f"{WORKDIR}/logs/pross_design_{{sample}}_{{p}}_{{t}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -527,12 +531,13 @@ rule pross_design_wt:
     params:
         protocol = f"{INPUTDIR}/pross/design/design_WT.xml",
     resources:
-        mem_mb=4000
+        mem_mb=8000,
+        runtime=2880
     log:
         f"{WORKDIR}/logs/pross_design_wt_{{sample}}_{{p}}_{{t}}.log"
     shell:
         """
-        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.protocol} \
             -s {input.pdb} \
             -parser:script_vars sym={input.symm} \
@@ -594,7 +599,8 @@ rule run_design_or_control:
         # concurrent jobs of all mutations overwrite each other's structures.
         pdbdir = f"{WORKDIR}/{{variant}}/{{sample}}_{{variant}}/{{mode}}/{{m}}_decoys"
     resources:
-        mem_mb=4000
+        mem_mb=8000,
+        runtime=4320
     log:
         f"{WORKDIR}/logs/run_design_or_control_{{variant}}_{{sample}}_{{mode}}_{{m}}.log"
     shell:
@@ -605,7 +611,7 @@ rule run_design_or_control:
         mutaa=$(echo $MUTATION_LINE | cut -d'_' -f2)
 
         mkdir -p {params.outdir} {params.pdbdir}
-        singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
+        {NO_LAUNCHER_ENV} singularity run -B {WORKDIR} -B {INPUTDIR} {ROSETTA_DIR}/rosetta_ml.sif rosetta_scripts \
             -parser:protocol {params.xml} \
             -parser:script_vars mutpos=$mutpos mut_aa=$mutaa protocol={wildcards.mode} symfile={input.symfile} \
             -in:file:s {input.pdb} \
