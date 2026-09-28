@@ -25,4 +25,8 @@ pssm_sources: [msa, esm, pmpnn]
 # PROSS sampling temperatures
 # These must match the delta_filter_thresholds of the FilterScan filter in
 # input_files/pross/filter/filterscan.xml, which names the resfiles it writes.
-pross_temps: [-0.5,-1,-1.5,-2,-2.5,-3,-3.5,-4,-4.5,-5,-5.5,-6]
+# -6.5..-10 were added after -0.5..-6 already had resfiles/scores on disk;
+# filterscan.xml's delta_filter_thresholds temporarily lists only the new
+# values so filterscan_residue only fills in what's missing per residue,
+# instead of clobbering the results already computed for -0.5..-6.
+pross_temps: [-0.5,-1,-1.5,-2,-2.5,-3,-3.5,-4,-4.5,-5,-5.5,-6,-6.5,-7,-7.5,-8,-8.5,-9,-9.5,-10]
