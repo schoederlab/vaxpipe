@@ -51,7 +51,6 @@ All paths live in `config.yaml`:
 | `samples` | Basename of the input PDB (`3ft7` for `3ft7.pdb`). |
 | `iterations` | Designs generated per branch (esm, pmpnn, indes). |
 | `mutations` | Most frequent mutations carried into the design/control validation. |
-| `pssm_sources` | Which profiles drive the PROSS design: any of `msa`, `esm`, `pmpnn`. See [Profile sources](#profile-sources). |
 | `pross_temps` | PROSS delta-score thresholds. These must match `delta_filter_thresholds` of the `FilterScan` filter in `input_files/pross/filter/filterscan.xml`, because that filter derives the resfile names from them. |
 
 `iterations` and `mutations` are what a local trial run and a production run on the
@@ -165,8 +164,7 @@ For more in-depth information, please refer to the [Snakemake documentation](htt
    `esm` (ESM-2 probabilities), `pmpnn` (ProteinMPNN probabilities) and `indes`
    (Rosetta symmetric interface `FastDesign`).
 3. **PROSS** — a sequence profile plus coordinate constraints, a `FilterScan` job per
-   residue, and design/WT scoring at each threshold in `pross_temps`. Runs once per
-   entry in `pssm_sources`.
+   residue, and design/WT scoring at each threshold in `pross_temps`.
 4. **Analysis** — sequences are extracted from all designs, mutation frequencies are
    counted against the wild type, and the `MUTATIONS` most frequent substitutions are
    each rebuilt twice (`design` with the mutation, `control` without it).
@@ -183,7 +181,9 @@ sequence profile decides which amino acids are *allowed* at each position, and R
 decides which of those are actually *stabilising* — a mutation has to pass both. That
 conjunction is what keeps the protocol conservative enough to trust.
 
-The rules are `generate_PSSM_and_constraints`, `pssm_from_weights`, `filterscan_residue`,
+The profile is the classic PROSS PSSM: `hhblits` against UniRef30 followed by `psiblast`.
+
+The rules are `generate_PSSM_and_constraints`, `filterscan_residue`,
 `merge_filterscan_resfiles`, `pross_design` and `pross_design_wt`. They are the only part
 of the pipeline that needs `hhblits`, BLAST+ and the UniRef30 database on the host, so
 set `uniref_db` before running them.
@@ -196,43 +196,9 @@ FilterScan appends and concurrent jobs would interleave their lines. Because the
 count is only known once `<sample>_WT.fasta` exists, `get_wt_fasta` is a Snakemake
 checkpoint.
 
-#### Profile sources
-
-`pssm_sources` selects which profiles drive the design; each one runs the whole PROSS
-branch and gets its own outputs.
-
-| source | profile |
-| --- | --- |
-| `msa` | the classic PROSS PSSM, from `hhblits` against UniRef30 followed by `psiblast` |
-| `esm` | the ESM-2 probabilities the `esm` sampling branch already computes |
-| `pmpnn` | the ProteinMPNN probabilities the `pmpnn` sampling branch already computes |
-
-`esm` and `pmpnn` cost nothing extra to produce, since both probability tables are built
-anyway for the sampling branches. `weights_to_pssm.py` converts them with
-`2 * log2(p / background)` on Robinson & Robinson background frequencies. The log-odds
-step is not cosmetic: `SeqprofConsensus` keeps every residue type scoring `>= 0`, and a
-probability is never negative, so feeding probabilities straight in would let all 20
-amino acids through and silently disable the filter. Scores are clamped at ±10 because
-the neural models are far more peaked than an alignment — ESM reaches `p = 2e-6`, which
-would otherwise score about -29 and swamp the `res_type_constraint` bonus that is tuned
-for BLAST-sized numbers.
-
-Two consequences worth knowing before reading the results:
-
-- The neural profiles are *sharper*, and at some positions they admit nothing but the
-  native residue. FilterScan then has no mutation to scan and writes no resfile, which
-  is a real result rather than a failure; `filterscan_residue` leaves an empty resfile
-  behind so the merge skips that position.
-- ProteinMPNN is conditioned on the backbone, so its preferences already correlate with
-  what Rosetta's energy function rewards. It will tend to look best on Δ total score
-  partly for that reason, which weakens the independence the two-filter logic relies on.
-  An alignment also encodes *functional* constraint — residues conserved because they
-  bind or catalyse, not because they stabilise — that a structure-only model cannot see.
-  If the point is to preserve epitopes, that is an argument for keeping `msa` in the mix.
-
-The case for the neural profiles is targets with shallow alignments, where `hhblits`
-returns too few homologues for the PSSM to mean anything. Check `Neff` in
-`pross/<sample>.hhr` before trusting the `msa` branch on a de novo scaffold.
+Before trusting the result on a de novo scaffold, check `Neff` in `pross/<sample>.hhr`:
+if `hhblits` returns too few homologues, the PSSM carries little information and the
+profile filter stops being meaningful.
 
 ### Output Layout
 
@@ -255,12 +221,11 @@ returns too few homologues for the PSSM to mean anything. Check `Neff` in
 │           ├── <n>.sc                    # score file that is compared
 │           └── <n>_decoys/               # the 20 structures behind it
 └── pross/
-    ├── <sample>.hhr | .a3m | .psi | .pssm | .cst   # the msa profile and constraints
-    ├── <sample>_esm.pssm | <sample>_pmpnn.pssm     # converted neural profiles
-    ├── <sample>_resfiles_<source>/
+    ├── <sample>.hhr | .a3m | .psi | .pssm | .cst   # the sequence profile and constraints
+    ├── <sample>_resfiles/
     │   ├── res<n>/designable_aa_resfile.<temp>     # one directory per residue
     │   └── designable_aa_resfile.<temp>            # merged, what the design reads
-    └── <sample>_pross_design_<source>_<temp>.sc | <sample>_pross_wt_<source>_<temp>.sc
+    └── <sample>_pross_design_<temp>.sc | <sample>_pross_wt_<temp>.sc
 ```
 
 Every rule writes its stdout/stderr to `<workdir>/logs/<rule>_<wildcards>.log`. If a
